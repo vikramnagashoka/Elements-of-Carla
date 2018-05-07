@@ -38,8 +38,8 @@ class WaypointUpdater(object):
         # Parameters
         self.accel_limit = rospy.get_param('~/twist_controller/accel_limit', 1.0) * ACC_FACTOR
         self.min_decel = rospy.get_param('~/twist_controller/decel_limit', -5) * MIN_DECEL_FACTOR
-        self.speed_limit = rospy.get_param('/waypoint_updater/speed_limit') * MAX_VEL_FACTOR
-        self.speed_limit = self.speed_limit * 1609.34 / 3600.  # m/s
+        self.speed_limit = rospy.get_param('/waypoint_loader/velocity') * MAX_VEL_FACTOR
+        self.speed_limit = self.speed_limit * 1000.0 / 3600.  # m/s
 
         # Subscribers
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
