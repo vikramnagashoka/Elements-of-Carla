@@ -26,14 +26,13 @@ LOOKAHEAD_WPS = 20 # Number of waypoints we will publish. You can change this nu
 ACC_FACTOR = 1
 MIN_DECEL_FACTOR = 0.2
 MAX_VEL_FACTOR = 0.95
-TL_MIN_DISTANCE = 3
+TL_MIN_DISTANCE = 1
 MIN_BREAK_DISTANCE = 3
 
 
 class WaypointUpdater(object):
 
     def __init__(self):
-        rospy.loginfo("WUP: Waypoint Updater initialization\n")
         rospy.init_node('waypoint_updater')
 
         # Parameters
@@ -97,6 +96,8 @@ class WaypointUpdater(object):
     def desired_action(self):
         if not (self.pose and self.waypoint_tree and self.current_twist):
             return None, {}
+        if self.closest_waypoint == len(self.waypoints) - 1:
+            return None, {}
         # Car max break distance
         max_break_distance = max(
             -1. * (self.current_velocity ** 2) / (2 * self.min_decel),
@@ -146,9 +147,10 @@ class WaypointUpdater(object):
         dist_to_waypoints = self.distance_list(max(waypoint, end - 1))
         distance_to_stop = dist_to_waypoints[waypoint - self.closest_waypoint] - offset
 
-        decel = (self.current_velocity ** 2)/(2 * distance_to_stop)
-        if decel <= 0:
+        if distance_to_stop <= 0:
             return self.constante_velocity_waypoints(0.)
+
+        decel = (self.current_velocity ** 2)/(2 * distance_to_stop)
 
         waypoints = []
         for idx in range(self.closest_waypoint, end):
@@ -167,6 +169,7 @@ class WaypointUpdater(object):
         end = min(self.closest_waypoint + LOOKAHEAD_WPS, len(self.waypoints))
 
         dist_to_waypoints = self.distance_list(end - 1)
+
         waypoints = []
         for idx in range(self.closest_waypoint, end):
             dist = dist_to_waypoints[idx - self.closest_waypoint]
@@ -223,7 +226,8 @@ class WaypointUpdater(object):
         val = np.dot(cl_vect-prev_vect, pos_vect-cl_vect)
 
         if val > 0:
-            closest_idx = (closest_idx + 1) % len(self.waypoints_2d)
+            if closest_idx < len(self.waypoints) - 1:
+                closest_idx = (closest_idx + 1)
         return closest_idx
 
     def euclidean_distance(self, point_a, point_b):
