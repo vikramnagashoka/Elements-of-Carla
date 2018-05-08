@@ -60,26 +60,26 @@ class TLDetector(object):
     def pose_cb(self, msg):
         self.pose = msg
 
-        if self.waypoint_tree:
-            light_wp, state = self.process_traffic_lights()
+        # if self.waypoint_tree:
+        #     light_wp, state = self.process_traffic_lights()
 
-            '''
-            Publish upcoming red lights at camera frequency.
-            Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
-            of times till we start using it. Otherwise the previous stable state is
-            used.
-            '''
-            if self.state != state:
-                self.state_count = 0
-                self.state = state
-            elif self.state_count >= STATE_COUNT_THRESHOLD:
-                self.last_state = self.state
-                light_wp = light_wp if state == TrafficLight.RED else -1
-                self.last_wp = light_wp
-                self.upcoming_red_light_pub.publish(Int32(light_wp))
-            else:
-                self.upcoming_red_light_pub.publish(Int32(self.last_wp))
-            self.state_count += 1
+        #     '''
+        #     Publish upcoming red lights at camera frequency.
+        #     Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
+        #     of times till we start using it. Otherwise the previous stable state is
+        #     used.
+        #     '''
+        #     if self.state != state:
+        #         self.state_count = 0
+        #         self.state = state
+        #     elif self.state_count >= STATE_COUNT_THRESHOLD:
+        #         self.last_state = self.state
+        #         light_wp = light_wp if state == TrafficLight.RED else -1
+        #         self.last_wp = light_wp
+        #         self.upcoming_red_light_pub.publish(Int32(light_wp))
+        #     else:
+        #         self.upcoming_red_light_pub.publish(Int32(self.last_wp))
+        #     self.state_count += 1
 
 
     def waypoints_cb(self, waypoints):
@@ -99,8 +99,10 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
 
         """
+
+
         
-        self.has_image = True
+        self.has_image = True 
         self.camera_image = msg
 
         light_wp, state = self.process_traffic_lights()
@@ -119,6 +121,7 @@ class TLDetector(object):
             light_wp = light_wp if state == TrafficLight.RED else -1
             self.last_wp = light_wp
             self.upcoming_red_light_pub.publish(Int32(light_wp))
+
         else:
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
@@ -169,7 +172,47 @@ class TLDetector(object):
         """
 
         # For testing, return light state provided by simulator
+        if self.light_classifier is None:
+            return TrafficLight.RED
+        if(not self.has_image):
+            self.prev_light_loc = None
+            return False
         return light.state
+
+        input_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+
+        width, height, _ = input_image.shape
+        x_start = int(width * 0.10)
+        x_end = int(width * 0.90)
+        y_start = 0
+        y_end = int(height * 0.85)
+        processed_img = input_image[y_start:y_end, x_start:x_end]
+
+        processed_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB)
+
+        light_state = TrafficLight.UNKNOWN
+        light_state_via_msg = None  
+
+
+        img_full_np = np.asarray(processed_img, dtype="uint8" )
+
+        b = self.light_classifier.get_bounding_box(img_full_np)
+        
+        print(b)
+            
+        if box == None:
+           print ('unknown')
+           unknown = True
+        else:    
+           img_np = cv2.resize(processed_img[b[0]:b[2], b[1]:b[3]], (64, 32))
+           self.light_classifier.get_classification(img_np)
+           light_state = self.light_classifier.signal_status
+           print("light state: ", light_state)
+           print("\n")
+
+
+
+        return light_state
 
         #if(not self.has_image):
         #    self.prev_light_loc = None
