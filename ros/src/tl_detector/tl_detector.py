@@ -62,9 +62,16 @@ class TLDetector(object):
 
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints
+
         if not self.waypoints_2d:
             self.waypoints_2d = [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] for waypoint in waypoints.waypoints]
             self.waypoint_tree = cKDTree(self.waypoints_2d, leafsize=1)
+
+            # find closes waypoint to each traffic light
+            self.traffic_light_waypoints = np.empty(len(self.config['stop_line_positions']), dtype=int)
+            for i, stop_line in enumerate(self.config['stop_line_positions']):
+                idx = self.get_closest_waypoint(stop_line[0], stop_line[1], False)
+                self.traffic_light_waypoints[i] = idx
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -80,9 +87,7 @@ class TLDetector(object):
 
         self.has_image = True
         self.camera_image = msg
-
-        return
-
+        
         if self.waypoint_tree:
             light_wp, state = self.process_traffic_lights()
 
@@ -183,8 +188,7 @@ class TLDetector(object):
             for i, light in enumerate(self.lights):
 
                 # Get stop line waypoint index
-                line = stop_line_positions[i]
-                temp_idx = self.get_closest_waypoint(line[0], line[1], False)
+                temp_idx = self.traffic_light_waypoints[i]
 
                 # Find closest stopline waypoint index
                 d = temp_idx - car_idx
