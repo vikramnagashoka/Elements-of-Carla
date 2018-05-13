@@ -7,7 +7,6 @@ from std_msgs.msg import Int32
 from styx_msgs.msg import Lane, Waypoint
 from scipy.spatial import cKDTree
 
-
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
 
@@ -28,7 +27,6 @@ MIN_DECEL_FACTOR = 0.2
 MAX_VEL_FACTOR = 0.95
 TL_MIN_DISTANCE = 1
 MIN_BREAK_DISTANCE = 3
-
 
 class WaypointUpdater(object):
 
@@ -56,11 +54,13 @@ class WaypointUpdater(object):
         self.waypoints = []
         self.waypoints_2d = []
         self.waypoint_tree = None
+        self.euc_distances = []
+        self.n_waypoints = -1
         self.traffic_waypoint = -1
         self.current_twist = None
 
         # Node state compute on each iteration
-        self.current_velocity = None
+        self.current_velocity2 = None
         self.closest_waypoint = None
         self.dist_to_closest_waypoint = None
 
@@ -83,7 +83,7 @@ class WaypointUpdater(object):
         if self.current_twist:
             # Car velocity
             linear_vel = self.current_twist.linear
-            self.current_velocity = math.sqrt(linear_vel.x ** 2 +  linear_vel.y ** 2)
+            self.current_velocity2 = linear_vel.x ** 2 +  linear_vel.y ** 2
         if self.pose and self.waypoint_tree:
             # Closest waypoint
             self.closest_waypoint = self.get_closest_waypoint_idx()
@@ -96,13 +96,15 @@ class WaypointUpdater(object):
     def desired_action(self):
         if not (self.pose and self.waypoint_tree and self.current_twist):
             return None, {}
-        if self.closest_waypoint == len(self.waypoints) - 1:
+        if self.closest_waypoint == self.n_waypoints - 1:
             return None, {}
+
         # Car max break distance
         max_break_distance = max(
-            -1. * (self.current_velocity ** 2) / (2 * self.min_decel),
+            -1. * self.current_velocity2 / (2 * self.min_decel),
             MIN_BREAK_DISTANCE
         )
+
         if self.traffic_waypoint > -1 and self.traffic_waypoint >= self.closest_waypoint:
             dist_to_tl = self.distance(self.traffic_waypoint)
             if dist_to_tl < TL_MIN_DISTANCE:
@@ -115,11 +117,11 @@ class WaypointUpdater(object):
                     'offset': TL_MIN_DISTANCE
                 }
 
-        if self.closest_waypoint + 200 > len(self.waypoints):
-            dist_to_end = self.distance(len(self.waypoints) - 1)
+        if self.closest_waypoint + 200 > self.n_waypoints:
+            dist_to_end = self.distance(self.n_waypoints - 1)
             if dist_to_end <= max_break_distance:
                 return 'SLOWDOWN', {
-                    'waypoint': len(self.waypoints) - 1,
+                    'waypoint': self.n_waypoints - 1,
                     'offset': 0
                 }
         return 'ACCELERATE', {}
@@ -132,17 +134,17 @@ class WaypointUpdater(object):
         return self.accelerate_waypoints(**context)
 
     def constante_velocity_waypoints(self, velocity):
-        end = min(self.closest_waypoint + LOOKAHEAD_WPS, len(self.waypoints))
-        waypoints = []
+        end = min(self.closest_waypoint + LOOKAHEAD_WPS, self.n_waypoints)
+        waypoints = [None] * (end - self.closest_waypoint)
         for idx in range(self.closest_waypoint, end):
             waypoint = Waypoint()
             waypoint.pose = self.waypoints[idx].pose
             waypoint.twist.twist.linear.x = velocity
-            waypoints.append(waypoint)
+            waypoints[idx-self.closest_waypoint] = waypoint
         return self.build_lane(waypoints)
 
     def slowdown_waypoints(self, waypoint, offset):
-        end = min(self.closest_waypoint + LOOKAHEAD_WPS, len(self.waypoints))
+        end = min(self.closest_waypoint + LOOKAHEAD_WPS, self.n_waypoints)
 
         dist_to_waypoints = self.distance_list(max(waypoint, end - 1))
         distance_to_stop = dist_to_waypoints[waypoint - self.closest_waypoint] - offset
@@ -150,36 +152,36 @@ class WaypointUpdater(object):
         if distance_to_stop <= 0:
             return self.constante_velocity_waypoints(0.)
 
-        decel = (self.current_velocity ** 2)/(2 * distance_to_stop)
+        decel = self.current_velocity2/(2 * distance_to_stop)
 
-        waypoints = []
+        waypoints = [None] * (end - self.closest_waypoint)
         for idx in range(self.closest_waypoint, end):
             dist = dist_to_waypoints[idx - self.closest_waypoint]
-            velocity = self.current_velocity**2 - 2 * decel * dist
+            velocity = self.current_velocity2 - 2 * decel * dist
             if velocity < 0.1:
                 velocity = 0.0
             velocity = math.sqrt(velocity)
             waypoint = Waypoint()
             waypoint.pose = self.waypoints[idx].pose
             waypoint.twist.twist.linear.x = velocity
-            waypoints.append(waypoint)
+            waypoints[idx-self.closest_waypoint] = waypoint
         return self.build_lane(waypoints)
 
     def accelerate_waypoints(self):
-        end = min(self.closest_waypoint + LOOKAHEAD_WPS, len(self.waypoints))
+        end = min(self.closest_waypoint + LOOKAHEAD_WPS, self.n_waypoints)
 
         dist_to_waypoints = self.distance_list(end - 1)
 
-        waypoints = []
+        waypoints = [None] * (end - self.closest_waypoint)
         for idx in range(self.closest_waypoint, end):
             dist = dist_to_waypoints[idx - self.closest_waypoint]
-            velocity = math.sqrt(self.current_velocity**2 + 2 * self.accel_limit * dist)
+            velocity = math.sqrt(self.current_velocity2 + 2 * self.accel_limit * dist)
             if velocity > self.speed_limit:
                 velocity = self.speed_limit
             waypoint = Waypoint()
             waypoint.pose = self.waypoints[idx].pose
             waypoint.twist.twist.linear.x = velocity
-            waypoints.append(waypoint)
+            waypoints[idx-self.closest_waypoint] = waypoint
         return self.build_lane(waypoints)
 
     def build_lane(self, waypoints):
@@ -194,25 +196,29 @@ class WaypointUpdater(object):
     def waypoints_cb(self, lane):
         self.original_waypoints = lane
         self.waypoints = lane.waypoints
+        self.n_waypoints = len(self.waypoints)
+
         if not self.waypoints_2d:
             self.waypoints_2d = [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y]
                                  for waypoint in self.waypoints]
             self.waypoint_tree = cKDTree(self.waypoints_2d, leafsize=1)
+            self.euc_distances = np.empty(self.n_waypoints-1, dtype=float)
+            for i in range(self.n_waypoints-1):
+                self.euc_distances[i] = self.euclidean_distance(
+                    self.waypoints[i].pose.pose.position,
+                    self.waypoints[i + 1].pose.pose.position
+                )
 
     def traffic_cb(self, msg):
         self.traffic_waypoint = msg.data
-
-    def obstacle_cb(self, msg):
-        # TODO: Callback for /obstacle_waypoint message. We will implement it later
-        pass
 
     def current_twist_cb(self, msg):
         self.current_twist = msg.twist
 
     def get_closest_waypoint_idx(self):
-        x_coordinate = self.pose.position.x
-        y_coordinate = self.pose.position.y
-        closest_idx = self.waypoint_tree.query([x_coordinate, y_coordinate], 1)[1]
+        x = self.pose.position.x
+        y = self.pose.position.y
+        closest_idx = self.waypoint_tree.query([x, y], 1)[1]
 
         # Check if closest is ahead or behind vehicle
         closest_coord = self.waypoints_2d[closest_idx]
@@ -221,13 +227,12 @@ class WaypointUpdater(object):
         # Equation for hyperplane through closest_coords
         cl_vect = np.array(closest_coord)
         prev_vect = np.array(prev_coord)
-        pos_vect = np.array([x_coordinate, y_coordinate])
+        pos_vect = np.array([x, y])
 
         val = np.dot(cl_vect-prev_vect, pos_vect-cl_vect)
 
         if val > 0:
-            if closest_idx < len(self.waypoints) - 1:
-                closest_idx = (closest_idx + 1)
+            closest_idx = (closest_idx + 1) % self.n_waypoints
         return closest_idx
 
     def euclidean_distance(self, point_a, point_b):
@@ -236,25 +241,14 @@ class WaypointUpdater(object):
         )
 
     def distance_list(self, wp2):
-        distances = [self.dist_to_closest_waypoint]
-        for i in range(self.closest_waypoint, wp2):
-            distances.append(self.euclidean_distance(
-                self.waypoints[i].pose.pose.position,
-                self.waypoints[i + 1].pose.pose.position
-            ))
-        for i in range(1, len(distances)):
-            distances[i] = distances[i] + distances[i - 1]
-        return distances
+        distances = np.empty(wp2-self.closest_waypoint+1, dtype=float)
+        distances[0] = self.dist_to_closest_waypoint
+        distances[1:] = self.euc_distances[self.closest_waypoint:wp2]
+        return distances.cumsum()
 
     def distance(self, wp2):
         dist = self.dist_to_closest_waypoint
-        for i in range(self.closest_waypoint, wp2):
-            dist += self.euclidean_distance(
-                self.waypoints[i].pose.pose.position,
-                self.waypoints[i + 1].pose.pose.position
-            )
-        return dist
-
+        return dist + sum(self.euc_distances[self.closest_waypoint:wp2])
 
 if __name__ == '__main__':
     try:
