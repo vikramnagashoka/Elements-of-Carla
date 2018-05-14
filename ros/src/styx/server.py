@@ -10,14 +10,12 @@ from flask import Flask, render_template
 
 from bridge import Bridge
 from conf import conf
-import rospy
 
 sio = socketio.Server()
 app = Flask(__name__)
 msgs = []
 
 dbw_enable = False
-image_counter = 0
 
 @sio.on('connect')
 def connect(sid, environ):
@@ -45,13 +43,13 @@ def telemetry(sid, data):
 def control(sid, data):
     bridge.publish_controls(data)
 
-#@sio.on('obstacle')
-#def obstacle(sid, data):
-#    bridge.publish_obstacles(data)
+@sio.on('obstacle')
+def obstacle(sid, data):
+    bridge.publish_obstacles(data)
 
-#@sio.on('lidar')
-#def obstacle(sid, data):
-#    bridge.publish_lidar(data)
+@sio.on('lidar')
+def obstacle(sid, data):
+    bridge.publish_lidar(data)
 
 @sio.on('trafficlights')
 def trafficlights(sid, data):
@@ -59,11 +57,7 @@ def trafficlights(sid, data):
 
 @sio.on('image')
 def image(sid, data):
-    global image_counter
-    image_counter += 1
-    if image_counter == 10:
-        image_counter = 0
-        bridge.publish_camera(data)
+    bridge.publish_camera(data)
 
 if __name__ == '__main__':
 
