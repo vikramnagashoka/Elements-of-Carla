@@ -6,6 +6,7 @@ import rospy
 GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
 
+py_max = lambda x, t: t if x < t else x
 
 class Controller(object):
     def __init__(self, vehicle_mass, fuel_capacity, brake_deadband, decel_limit,
@@ -31,6 +32,7 @@ class Controller(object):
 	self.accel_limit = accel_limit
 	self.wheel_radius = wheel_radius
 
+        self.vehicle_mass_wheel_radius = self.vehicle_mass*self.wheel_radius
 	self.last_time = rospy.get_time()
 
 
@@ -62,7 +64,7 @@ class Controller(object):
 
 	elif throttle < .1 and vel_error < 0:
 	    throttle = 0
-	    decel = max(vel_error, self.decel_limit)
-	    brake = abs(decel)*self.vehicle_mass*self.wheel_radius # Torque N*m
+	    decel = py_max(vel_error, self.decel_limit)
+	    brake = abs(decel)*self.vehicle_mass_wheel_radius # Torque N*m
 
         return throttle, brake, steering

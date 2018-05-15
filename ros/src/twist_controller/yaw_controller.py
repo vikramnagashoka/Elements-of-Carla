@@ -1,4 +1,8 @@
 from math import atan
+import rospy
+
+py_clip = lambda x, l, u: l if x < l else u if x > u else x
+py_max = lambda x, t: t if x < t else x
 
 class YawController(object):
     def __init__(self, wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle):
@@ -12,14 +16,14 @@ class YawController(object):
 
 
     def get_angle(self, radius):
-        angle = atan(self.wheel_base / radius) * self.steer_ratio
-        return max(self.min_angle, min(self.max_angle, angle))
+        angle = atan(self.wheel_base/radius) * self.steer_ratio
+        return py_clip(angle, self.min_angle, self.max_angle)
 
     def get_steering(self, linear_velocity, angular_velocity, current_velocity):
-        angular_velocity = current_velocity * angular_velocity / linear_velocity if abs(linear_velocity) > 0. else 0.
+        angular_velocity = current_velocity * angular_velocity / linear_velocity if linear_velocity > 0. else 0.
 
-        if abs(current_velocity) > 0.1:
+        if current_velocity > 0.1:
             max_yaw_rate = abs(self.max_lat_accel / current_velocity);
-            angular_velocity = max(-max_yaw_rate, min(max_yaw_rate, angular_velocity))
+            angular_velocity = py_clip(angular_velocity, -max_yaw_rate, max_yaw_rate)
 
-        return self.get_angle(max(current_velocity, self.min_speed) / angular_velocity) if abs(angular_velocity) > 0. else 0.0;
+        return self.get_angle(py_max(current_velocity, self.min_speed) / angular_velocity) if abs(angular_velocity) > 0. else 0.0

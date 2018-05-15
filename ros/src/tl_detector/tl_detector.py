@@ -64,7 +64,13 @@ class TLDetector(object):
         self.waypoints = waypoints
         if not self.waypoints_2d:
             self.waypoints_2d = [[waypoint.pose.pose.position.x, waypoint.pose.pose.position.y] for waypoint in waypoints.waypoints]
-            self.waypoint_tree = cKDTree(self.waypoints_2d, leafsize=1)
+            self.waypoint_tree = cKDTree(self.waypoints_2d,leafsize=1)
+
+            # find closest waypoint to each traffic light 
+            self.traffic_light_waypoints = np.empty(len(self.config['stop_line_positions']), dtype=int) 
+            for i, stop_line in enumerate(self.config['stop_line_positions']): 
+                idx = self.get_closest_waypoint(stop_line[0], stop_line[1], False) 
+                self.traffic_light_waypoints[i] = idx 
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -120,13 +126,13 @@ class TLDetector(object):
 
         # Check if closest is ahead or behind vehicle
         closest_coord = self.waypoints_2d[closest_idx]
-        prev_coord = self.waypoints_2d[closest_idx-1]
-
+        prev_coord    = self.waypoints_2d[closest_idx-1]
+                
         # Equation for hyperplane through closest_coords
         cl_vect = np.array(closest_coord)
         prev_vect = np.array(prev_coord)
         pos_vect = np.array([x, y])
-
+                
         val = np.dot(cl_vect-prev_vect, pos_vect-cl_vect)
 
         if val > 0 and forward == True:
@@ -169,11 +175,11 @@ class TLDetector(object):
 
         """
         traffic_light = None
-        light_idx = None
+        light_idx = None 
 
         # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
-        if self.pose:
+        if(self.pose):
             car_idx = self.get_closest_waypoint(self.pose.pose.position.x, self.pose.pose.position.y, True)
 
             # find the closest visible traffic light (if one exists)
@@ -181,12 +187,11 @@ class TLDetector(object):
             for i, light in enumerate(self.lights):
 
                 # Get stop line waypoint index
-                line = stop_line_positions[i]
-                temp_idx = self.get_closest_waypoint(line[0], line[1], False)
+                temp_idx = self.traffic_light_waypoints[i] 
 
                 # Find closest stopline waypoint index
                 d = temp_idx - car_idx
-                if d >= 0 and d < diff:
+                if d>=0 and d < diff:
                     diff = d
                     traffic_light = light
                     light_idx = temp_idx
