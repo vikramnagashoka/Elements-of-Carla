@@ -18,7 +18,7 @@ class Controller(object):
 	ki = 0.1
 	kd = 0.
 	mn = 0.  # Minimum throttle value
-	mx = 0.2 # Maximum throttle value
+	mx = 0.3 # Maximum throttle value
 	self.throttle_controller = PID(kp, ki, kd, mn, mx)
 
 	tau = 0.5 # 1/(2pi*tau) = cutoff frequency
@@ -60,7 +60,7 @@ class Controller(object):
 
 	if linear_vel == 0. and current_vel < 0.1:
 	    throttle = 0
-	    brake = 400
+	    brake = 700
 
 	elif throttle < .1 and vel_error < 0:
 	    throttle = 0
