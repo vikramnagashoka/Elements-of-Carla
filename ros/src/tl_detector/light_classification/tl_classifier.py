@@ -21,34 +21,29 @@ class TLClassifier(object):
     def __init__(self):
         #TODO load classifier
 
-        #self.threshold = threshold
-        #self.hw_ratio = hw_ratio    #height_width ratio
-        #print('Initializing classifier with threshold =', self.threshold)
-        self.signal_classes = ['Red', 'Green', 'Yellow']
-       # self.signal_status = TrafficLight.UNKNOWN
-        self.signal_status = None
+        
+        self.signal_classes = ['Red', 'Yellow', 'Green', 'None']
+        self.signal_status = TrafficLight.UNKNOWN
+        #self.signal_status = None
 
         self.traffic_box = None
 
         self.num_pixels = 25
-        # Define red pixels in hsv color space
-        # self.lower_red_1 = np.array([0,  70, 50],   dtype = "uint8")
-        # self.upper_red_1 = np.array([10, 255, 255], dtype = "uint8")
-
-        # self.lower_red_2 = np.array([170,  70,  50], dtype = "uint8")
-        # self.upper_red_2 = np.array([180, 255, 255], dtype = "uint8")
+        
 
         os.chdir(cwd)
 
-        self.class_model = load_model('tl_classifier_simulator.h5') #switched to model 5 for harsh light
+        self.class_model = load_model('tl_classifier_simulator.h5') 
         self.graph = tf.get_default_graph()
 
         #tensorflow localization/detection model
-        model = 'ssd_mobilenet_v1_coco_11_06_2017' #was 'ssd_inception_v2_coco_11_06_2017'
+        model = 'ssd_mobilenet_v1_coco_11_06_2017' 
         PATH_TO_CKPT = model + '/frozen_inference_graph.pb'
+        
         # setup tensorflow graph
         self.detection_graph = tf.Graph()
         # configuration for possible GPU
+        
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
 
@@ -61,10 +56,9 @@ class TLClassifier(object):
 
             self.sess = tf.Session(graph=self.detection_graph, config=config)
             self.image_tensor = self.detection_graph.get_tensor_by_name('image_tensor:0')
-              # Each box represents a part of the image where a particular object was detected.
+
+              
             self.boxes = self.detection_graph.get_tensor_by_name('detection_boxes:0')
-              # Each score represent how level of confidence for each of the objects.
-              # Score is shown on the result image, together with the class label.
             self.scores =self.detection_graph.get_tensor_by_name('detection_scores:0')
             self.classes = self.detection_graph.get_tensor_by_name('detection_classes:0')
             self.num_detections =self.detection_graph.get_tensor_by_name('num_detections:0')
@@ -73,6 +67,7 @@ class TLClassifier(object):
     def box_normal_to_pixel(self, box, dim):
 
         height, width = dim[0], dim[1]
+        print("boxes shape: ", box.shape)  
         box_pixel = [int(box[0]*height), int(box[1]*width), int(box[2]*height), int(box[3]*width)]
         return np.array(box_pixel)
 
@@ -87,37 +82,38 @@ class TLClassifier(object):
         classes = list(np.squeeze(classes))  # classes
         scores = np.squeeze(scores) # confidence
 
-        idx = next((i for i, v in enumerate(cls) if v == 10.), -1)
+        idx = next((i for i, v in enumerate(classes) if v == 10.), -1)
         confidence = scores[idx]
         cls_idx = classes[idx] 
 
         if idx == -1:
             box=[0, 0, 0, 0]
-        elif scores[idx]<=0.3: #updated site treshold to 0.01 for harsh light
+        elif scores[idx]<=0.3:
             box=[0, 0, 0, 0]
         else:
             dim = image.shape[0:2]
 
             #convert to pixels
             height, width = dim[0], dim[1]
-            box = [int(boxes[0]*height), int(boxes[1]*width), int(boxes[2]*height), int(boxes[3]*width)]
+            print("boxes shape: ", boxes.shape)
+
+            box = [int(boxes[0][0]*height), int(boxes[1][0]*width), int(boxes[0][2]*height), int(boxes[0][3]*width)]
             
             #box = self.box_normal_to_pixel(boxes[idx], dim)
             box_h = box[2] - box[0]
             box_w = box[3] - box[1]
             #ratio = box_h/(box_w + 0.01)
-                  # if the box is too small, 20 pixels for simulator
-            if (box_h <20) or (box_w<20):
+                  
+            box_index = 1
+            while (((box_h <20) or (box_w<20)) and box_index < boxes.shape[0]):
                 box =[0, 0, 0, 0]
-                print('box too small!', box_h, box_w)
-              # if the h-w ratio is not right, 1.5 for simulator, 0.5 for site
-            # elif (ratio < self.hw_ratio):
-            #     box =[0, 0, 0, 0]
-            #     print('wrong h-w ratio', ratio)
-            # else:
-            #     print(box)
-            #     print('localization confidence: ', scores[idx])
-                 #****************end of corner cases***********************
+                #print('box too small!', box_h, box_w)
+                box = [int(boxes[box_index][0]*height), int(boxes[box_index][0]*width), int(boxes[box_index][2]*height), int(boxes[box_index][3]*width)]
+                box_index += 1
+
+            box_h = box[2] - box[0]
+            box_w = box[3] - box[1]
+
             self.traffic_box = box
 
         return box
@@ -143,6 +139,7 @@ class TLClassifier(object):
             signal_color_prob = self.class_model.predict(img_resize)
             
             color = self.signal_classes[np.argmax(signal_color_prob)]
+            print('color is: ', color)
             
             self.signal_status = color
         # uncomment the following in real test
@@ -152,6 +149,8 @@ class TLClassifier(object):
             self.signal_status = TrafficLight.GREEN
         elif color == 'Yellow':
             self.signal_status = TrafficLight.YELLOW
+        else:
+            self.signal_status = TrafficLight.UNKNOWN
 
         return self.signal_status
 

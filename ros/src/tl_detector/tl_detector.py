@@ -155,45 +155,53 @@ class TLDetector(object):
         """
 
         # For testing, return light state provided by simulator
-        if self.light_classifier is None:
-            return TrafficLight.RED
+        # if self.light_classifier is None:
+        #     return TrafficLight.RED
 
-        if not self.has_image:
-            self.prev_light_loc = None
-            return False
+        # if not self.has_image:
+        #     self.prev_light_loc = None
+        #     return False
 
-        input_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        # print("get light state works till here 1") 
 
-        width, height, _ = input_image.shape
-        x_start = int(width * 0.10)
-        x_end = int(width * 0.90)
-        y_start = 0
-        y_end = int(height * 0.85)
-        processed_img = input_image[y_start:y_end, x_start:x_end]
+        # input_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        # input_image = self.bridge.imgmsg_to_cv2(self.camera_image,desired_encoding="passthrough")       
 
-        processed_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB)
+        # width, height, _ = input_image.shape
+        # x_start = int(width * 0.10)
+        # x_end = int(width * 0.90)
+        # y_start = 0
+        # y_end = int(height * 0.85)
+        # processed_img = input_image[y_start:y_end, x_start:x_end]
 
-        light_state = TrafficLight.UNKNOWN
-        light_state_via_msg = None  
+        # processed_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB)
+
+        # light_state = TrafficLight.UNKNOWN
+        # light_state_via_msg = None  
 
 
-        img_full_np = np.asarray(processed_img, dtype="uint8" )
+        # img_full_np = np.asarray(processed_img, dtype="uint8" )
 
-        b = self.light_classifier.get_bounding_box(img_full_np)
+        # b = self.light_classifier.get_bounding_box(img_full_np)
         
-        print(b)
+        # print(b)
             
-        if b == None:
-           print ('unknown')
-           unknown = True
-        else:    
-           img_np = cv2.resize(processed_img[b[0]:b[2], b[1]:b[3]], (64, 32))
-           self.light_classifier.get_classification(img_np)
-           light_state = self.light_classifier.signal_status
-           print("light state: ", light_state)
-           print("\n")
+        # if b == None:
+        #    print ('unknown')
+        #    unknown = True
+        # else:    
+        #    img_np = cv2.resize(processed_img[b[0]:b[2], b[1]:b[3]], (64, 32))
+        #    self.light_classifier.get_classification(img_np)
+        #    light_state = self.light_classifier.signal_status
+        #    print("light state: ", light_state)
+        #    print("\n")
 
-        return light_state
+        # return light_state
+        print("light state function")
+        print(type(light.state))
+        
+        print(light.state)
+        return light.state
 
         #if(not self.has_image):
         #    self.prev_light_loc = None
@@ -228,6 +236,7 @@ class TLDetector(object):
                 # Get stop line waypoint index
                 line = stop_line_positions[i]
                 temp_idx = self.get_closest_waypoint(line[0], line[1], False)
+                #temp_idx = self.traffic_light_waypoints[i]
 
                 # Find closest stopline waypoint index
                 d = temp_idx - car_idx
