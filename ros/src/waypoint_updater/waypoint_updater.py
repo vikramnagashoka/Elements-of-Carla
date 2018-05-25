@@ -22,9 +22,11 @@ as well as to verify your TL classifier.
 '''
 
 LOOKAHEAD_WPS = 150 # Number of waypoints we will publish. You can change this number
-ACC_FACTOR = 1.0
-DECEL_FACTOR = 1.0
-MAX_VEL_FACTOR = 1.0
+ACC_FACTOR = 0.95
+DECEL_FACTOR = 0.35
+MAX_VEL_FACTOR = 0.95
+TL_MIN_DISTANCE = 1
+MIN_BREAK_DIST = 3
 
 class WaypointUpdater(object):
 
@@ -33,9 +35,10 @@ class WaypointUpdater(object):
 
         # Parameters
         self.accel_limit = rospy.get_param('~/twist_controller/accel_limit', 1.0) * ACC_FACTOR
-        self.min_decel = rospy.get_param('~/twist_controller/decel_limit', -1.0) * DECEL_FACTOR
+        self.min_decel = rospy.get_param('~/twist_controller/decel_limit', -5.0) * DECEL_FACTOR
         self.speed_limit = rospy.get_param('/waypoint_loader/velocity') * MAX_VEL_FACTOR
         self.speed_limit = self.speed_limit * 1000.0 / 3600.  # m/s
+        self.speed_limit2 = self.speed_limit ** 2
 
         # Subscribers
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
@@ -90,12 +93,12 @@ class WaypointUpdater(object):
         if self.current_twist:
             # Car velocity
             linear_vel = self.current_twist.linear
-            self.current_velocity2 = linear_vel.x ** 2# +  linear_vel.y ** 2
+            self.current_velocity2 = linear_vel.x ** 2
 
         if self.pose and self.waypoint_tree:
             # Closest waypoint
             self.closest_waypoint_idx = self.get_closest_waypoint_idx()
-           
+
             # Distance to closest waypoint
             self.dist_to_closest_waypoint = self.euclidean_distance(
                 self.pose.position,
@@ -103,28 +106,26 @@ class WaypointUpdater(object):
             )
 
     def desired_action(self):
-        
+        # No action in case of missing data
         if not (self.pose and self.waypoint_tree and self.current_twist):
             return None, {}
 
+        # No action in case car is beyond last waypoint
+        if self.closest_waypoint_idx == self.n_waypoints:
+            return None, {}
+
+        start_stopping_dist = 2 * self.current_velocity2 / self.decelx2 + MIN_BREAK_DIST
+
         # Red light detected
-        if (self.traffic_waypoint_idx > -1):
+        if self.traffic_waypoint_idx > -1 and self.traffic_waypoint_idx >= self.closest_waypoint_idx:
+            stop_dist = self.distance(self.traffic_waypoint_idx)
+            if stop_dist - TL_MIN_DISTANCE <= start_stopping_dist:
+                return 'SLOWDOWN', {'stop_dist': stop_dist - TL_MIN_DISTANCE}
 
-            if (self.closest_waypoint_idx + LOOKAHEAD_WPS > self.n_waypoints-1):
-                traffic_idx = self.traffic_waypoint_idx + self.n_waypoints
-            else:
-                traffic_idx = self.traffic_waypoint_idx            
-
-            # Check if the traffic light is within the next LOOKAHEAD_WPS number of waypoints
-            if (traffic_idx >=  self.closest_waypoint_idx and
-                traffic_idx <= (self.closest_waypoint_idx + LOOKAHEAD_WPS)):
-
-                dist_to_tl = self.distance(self.traffic_waypoint_idx)
-                #rospy.loginfo("WUP: tl=%s, dist=%s, vel=%s", self.traffic_waypoint_idx, dist_to_tl, self.current_twist.linear.x)
-
-                return 'SLOWDOWN', {'dist': dist_to_tl}
-
-        #rospy.loginfo("WUP: accelerate")
+        if self.closest_waypoint_idx + LOOKAHEAD_WPS > self.n_waypoints:
+            stop_dist = self.distance(self.n_waypoints - 1)
+            if stop_dist <= start_stopping_dist:
+                return 'SLOWDOWN', {'stop_dist': stop_dist}
         return 'ACCELERATE', {}
 
     def build_final_waypoints(self, action, context):
@@ -132,69 +133,62 @@ class WaypointUpdater(object):
             return self.slowdown_waypoints(**context)
         return self.accelerate_waypoints(**context)
 
-    def slowdown_waypoints(self, dist):
-
-        flag_stop = False
+    def slowdown_waypoints(self, stop_dist):
+        target_waypoint = min(self.closest_waypoint_idx + LOOKAHEAD_WPS, self.n_waypoints)
         velocity2 = self.current_velocity2
-        waypoints = []
+        decelx2 = max(self.decelx2, velocity2/stop_dist)
+        waypoints = [None] * (target_waypoint - self.closest_waypoint_idx)
+        dist = self.dist_to_closest_waypoint
+        stop_dist -= dist
 
-        for i in range(LOOKAHEAD_WPS):
-
-            idx = (self.closest_waypoint_idx + i) % self.n_waypoints
-
-            # All waypoints after the traffic light have zero velocity
-            if (idx == self.traffic_waypoint_idx or flag_stop == True):
-
-                flag_stop = True
+        for idx in range(self.closest_waypoint_idx, target_waypoint):
+            if stop_dist <= 0:
                 velocity = 0.0
-
             else:
-
-                # Calculate velocity at the next waypoint
-                velocity = math.sqrt(max(self.decelx2 * dist, 0.0))
-                dist = dist - self.euc_distances[idx]
-
-                velocity_max = math.sqrt(max(velocity2 + self.accelx2 * self.euc_distances[idx], 0.0))
-
-                velocity = min(max(self.speed_limit, velocity_max), velocity)
-
+                velocity = decelx2 * stop_dist
+                velocity = min(
+                    self.speed_limit2,
+                    velocity2 + self.accelx2 * dist,
+                    velocity
+                )
                 if velocity < 0.1:
                     velocity = 0.0
-                velocity2 = velocity*velocity
+                velocity2 = velocity
+                velocity = math.sqrt(velocity)
 
             # Create the waypoint
             waypoint = Waypoint()
             waypoint.pose = self.waypoints[idx].pose
-            waypoint.twist.twist.linear.x = velocity     
-            waypoints.append(waypoint)
+            waypoint.twist.twist.linear.x = velocity
+            waypoints[idx - self.closest_waypoint_idx] = waypoint
+
+            # Setup next iteration
+            dist = self.euc_distances[idx]
+            stop_dist -= dist
 
         return self.build_lane(waypoints)
 
     def accelerate_waypoints(self):
-
+        target_waypoint = min(self.closest_waypoint_idx + LOOKAHEAD_WPS, self.n_waypoints)
         dist = self.dist_to_closest_waypoint
-        velocity2 = self.current_velocity2
-        waypoints = []
 
-        for i in range(LOOKAHEAD_WPS):
-
-            idx = (self.closest_waypoint_idx + i) % self.n_waypoints
+        waypoints = [None] * (target_waypoint - self.closest_waypoint_idx)
+        for idx in range(self.closest_waypoint_idx, target_waypoint):
 
             # Calculate velocity at the next waypoint
-            velocity = math.sqrt(max(velocity2 + self.accelx2 * dist, 0.0))
-            dist = self.euc_distances[idx]
+            velocity = math.sqrt(self.current_velocity2 + self.accelx2 * dist)
 
             # Do not go faster than the speed limit
-            if velocity > self.speed_limit:
-                velocity = self.speed_limit
-            velocity2 = velocity*velocity
+            velocity = min(self.speed_limit, velocity)
 
-            #rospy.loginfo("WUP: acc cvel=%s, vel=%s, limit=%s", self.current_twist.linear.x, velocity, self.speed_limit)
             # Create the waypoint
             waypoint = Waypoint()
             waypoint.pose = self.waypoints[idx].pose
-            waypoint.twist.twist.linear.x = velocity            
-            waypoints.append(waypoint)
+            waypoint.twist.twist.linear.x = velocity
+            waypoints[idx - self.closest_waypoint_idx] = waypoint
+
+            # Setup next iteration
+            dist += self.euc_distances[idx]
 
         return self.build_lane(waypoints)
 
@@ -222,26 +216,15 @@ class WaypointUpdater(object):
             self.waypoint_tree = cKDTree(self.waypoints_2d, leafsize=1)
 
             # Euclidean distances from each waypoint to the next
-            self.euc_distances = np.empty(self.n_waypoints, dtype=float)
-            for i in range(self.n_waypoints-1):
+            self.euc_distances = np.empty(self.n_waypoints - 1, dtype=float)
+            for i in range(self.n_waypoints - 1):
                 self.euc_distances[i] = self.euclidean_distance(
                     self.waypoints[i].pose.pose.position,
-                    self.waypoints[i + 1].pose.pose.position)
-            
-            # Distance from the last waypoint to first one
-            self.euc_distances[self.n_waypoints-1] = self.euclidean_distance(
-                self.waypoints[self.n_waypoints-1].pose.pose.position,
-                self.waypoints[0].pose.pose.position)
+                    self.waypoints[i + 1].pose.pose.position
+                )
 
     def traffic_cb(self, msg):
         self.traffic_waypoint_idx = msg.data
-
-        # Subtract some waypoints so that the car stops behind the stop line
-        if (self.traffic_waypoint_idx >= 0):
-            self.traffic_waypoint_idx = self.traffic_waypoint_idx - 3
-            # Handle underflow situation
-            if (self.traffic_waypoint_idx < 0):
-                self.traffic_waypoint_idx = self.traffic_waypoint_idx + self.n_waypoints
 
     def current_twist_cb(self, msg):
         self.current_twist = msg.twist
@@ -250,27 +233,25 @@ class WaypointUpdater(object):
         x = self.pose.position.x
         y = self.pose.position.y
         closest_idx = self.waypoint_tree.query([x, y], 1)[1]
+        pos_vect = np.array([x, y])
 
-        #while True:
-        for i in range(3):
-
+        for _ in range(3):
             # Check if closest is ahead or behind vehicle
             closest_coord = self.waypoints_2d[closest_idx]
-            prev_coord    = self.waypoints_2d[closest_idx-1]
-		
+            prev_coord = self.waypoints_2d[closest_idx-1]
+
             # Equation for hyperplane through closest_coords
             cl_vect = np.array(closest_coord)
             prev_vect = np.array(prev_coord)
-            pos_vect = np.array([x, y])
-		
+
             val = np.dot(cl_vect-prev_vect, pos_vect-cl_vect)
 
             if val > 0:
-                closest_idx = (closest_idx + 1) % self.n_waypoints
+                closest_idx = closest_idx + 1
+                if closest_idx == self.n_waypoints:
+                    return closest_idx
             else:
-                break;
-
-        return closest_idx
+                return closest_idx
 
     def euclidean_distance(self, point_a, point_b):
         return math.sqrt(
@@ -278,16 +259,12 @@ class WaypointUpdater(object):
         )
 
     def distance(self, wp2):
-        idx = self.closest_waypoint_idx
         dist = self.dist_to_closest_waypoint
-        while (idx != wp2):
-            dist = dist + self.euc_distances[idx]
-            idx = (idx + 1) % self.n_waypoints
-        return dist
+        return dist + sum(self.euc_distances[self.closest_waypoint_idx:wp2])
+
 
 if __name__ == '__main__':
     try:
         WaypointUpdater()
     except rospy.ROSInterruptException:
         rospy.logerr('Could not start waypoint updater node.')
-
