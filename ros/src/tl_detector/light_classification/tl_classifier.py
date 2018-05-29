@@ -33,7 +33,7 @@ class TLClassifier(object):
 
         os.chdir(cwd)
 
-        self.class_model = load_model('tl_classifier_simulator_one.h5') 
+        self.class_model = load_model('tl_classifier_simulator_two.h5') 
         self.graph = tf.get_default_graph()
 
         #tensorflow localization/detection model
@@ -78,7 +78,7 @@ class TLClassifier(object):
         cls_idx = classes[idx] 
 
         if idx == -1:
-            box=[0, 0, 0, 0]
+            box=[1, 1, 1, 1]
         elif scores[idx]<=0.3:
             box=[0, 0, 0, 0]
         else:
@@ -89,7 +89,7 @@ class TLClassifier(object):
             
             #convert box co ordinates to pixels
 
-            box = [int(boxes[0][0]*height), int(boxes[1][0]*width), int(boxes[0][2]*height), int(boxes[0][3]*width)]
+            box = [int(boxes[0][0]*height), int(boxes[0][1]*width), int(boxes[0][2]*height), int(boxes[0][3]*width)] 
             
             
             box_h = box[2] - box[0]
@@ -98,13 +98,17 @@ class TLClassifier(object):
             #If the first bounding box is too small, iterate over remaining set of boxes to find an optimal one.
             box_index = 1
             while (((box_h <20) or (box_w<20)) and box_index < boxes.shape[0]):
-                box =[0, 0, 0, 0]
+                #box =[0, 0, 0, 0]
                 
-                box = [int(boxes[box_index][0]*height), int(boxes[box_index][0]*width), int(boxes[box_index][2]*height), int(boxes[box_index][3]*width)]
+                box = [int(boxes[box_index][0]*height), int(boxes[box_index][1]*width), int(boxes[box_index][2]*height), int(boxes[box_index][3]*width)]
                 box_index += 1
+                if box[1] > box[3]:
+                    print("wrong box")  
+                    #box[1] = b[3] - 50
 
-            box_h = box[2] - box[0]
-            box_w = box[3] - box[1]
+                box_h = box[2] - box[0]
+                box_w = box[3] - box[1]
+                
 
             self.traffic_box = box
 

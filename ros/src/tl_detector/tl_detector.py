@@ -46,8 +46,7 @@ class TLDetector(object):
 
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
-        self.bridge = CvBridge()
-        print("before initialization")  
+        self.bridge = CvBridge()  
         self.light_classifier = TLClassifier()
         self.listener = tf.TransformListener()
 
@@ -172,7 +171,6 @@ class TLDetector(object):
         else:
             self.camera_image.encoding = 'rgb8'
 
-        
         input_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")      
         
 
@@ -193,11 +191,13 @@ class TLDetector(object):
 
         b = self.light_classifier.get_bounding_box(img_full_np)
         
-        print(b)
+        print("Bounding box: ", b)   
             
         if b == None:
            print ('unknown')
            unknown = True
+        elif b[0] == b[1] == b[2] == b[3] == 1:
+            light_state = 4
         elif b[0] > 0 and b[1] > 0 and b[2] > 0 and b[3] > 0:
            img_np = cv2.resize(processed_img[b[0]:b[2], b[1]:b[3]], (32, 32))
            self.light_classifier.get_classification(img_np)
@@ -209,9 +209,8 @@ class TLDetector(object):
         #return light_state
         # print("light state function")
         # print(type(light.state))
-        
-        # print(light.state)
-        return light.state
+
+        return light_state
 
         #if(not self.has_image):
         #    self.prev_light_loc = None
