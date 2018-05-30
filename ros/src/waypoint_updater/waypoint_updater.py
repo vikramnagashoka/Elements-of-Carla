@@ -21,12 +21,12 @@ as well as to verify your TL classifier.
 
 '''
 
-LOOKAHEAD_WPS = 20 # Number of waypoints we will publish. You can change this number
-ACC_FACTOR = 1
-MIN_DECEL_FACTOR = 0.2
+LOOKAHEAD_WPS = 150 # Number of waypoints we will publish. You can change this number
+ACC_FACTOR = 0.95
+MIN_DECEL_FACTOR = 0.35
 MAX_VEL_FACTOR = 0.95
 TL_MIN_DISTANCE = 1
-MIN_BREAK_DISTANCE = 3
+MIN_BREAK_DISTANCE = 5
 
 class WaypointUpdater(object):
 
@@ -67,7 +67,7 @@ class WaypointUpdater(object):
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(50)
+        rate = rospy.Rate(10)
         while not rospy.is_shutdown():
             # Compute common state data for all actions.
             self.compute_state()
@@ -112,6 +112,12 @@ class WaypointUpdater(object):
                     'velocity': 0.
                 }
             if dist_to_tl - TL_MIN_DISTANCE <= max_break_distance:
+                rospy.loginfo("SLOWDOWN {} {} {} {}".format(
+                    dist_to_tl - TL_MIN_DISTANCE,
+                    max_break_distance,
+                    math.sqrt(self.current_velocity2),
+                    self.current_velocity2/(2 * dist_to_tl - TL_MIN_DISTANCE)
+                ))
                 return 'SLOWDOWN', {
                     'waypoint': self.traffic_waypoint,
                     'offset': TL_MIN_DISTANCE
@@ -124,6 +130,9 @@ class WaypointUpdater(object):
                     'waypoint': self.n_waypoints - 1,
                     'offset': 0
                 }
+        rospy.loginfo("ACCELERATE {}".format(
+            math.sqrt(self.current_velocity2)
+        ))
         return 'ACCELERATE', {}
 
     def build_final_waypoints(self, action, context):
@@ -149,7 +158,7 @@ class WaypointUpdater(object):
         dist_to_waypoints = self.distance_list(max(waypoint, end - 1))
         distance_to_stop = dist_to_waypoints[waypoint - self.closest_waypoint] - offset
 
-        if distance_to_stop <= 0:
+        if distance_to_stop <= 0 or self.current_velocity2 < 0.1:
             return self.constante_velocity_waypoints(0.)
 
         decel = self.current_velocity2/(2 * distance_to_stop)
