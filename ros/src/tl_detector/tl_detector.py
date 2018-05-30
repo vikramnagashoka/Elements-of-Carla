@@ -173,43 +173,15 @@ class TLDetector(object):
 
         input_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")
 
-        width, height, _ = input_image.shape
-        x_start = int(width * 0.10)
-        x_end = int(width * 0.90)
-        y_start = 0
-        y_end = int(height * 0.85)
-        processed_img = input_image[y_start:y_end, x_start:x_end]
-
-        processed_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB)
-
         light_state = TrafficLight.UNKNOWN
         light_state_via_msg = None
 
-        img_full_np = np.asarray(processed_img, dtype="uint8" )
 
-        self.light_classifier.get_class(processed_img)
+        self.light_classifier.get_class(input_image)
         light_state = self.light_classifier.signal_status
         
         print("light state predicted: ", light_state)
         print("light state ground truth: ", light.state)
-
-        # b = self.light_classifier.get_bounding_box(img_full_np)
-        
-        # print("Bounding box: ", b)   
-            
-        # if b == None:
-        #    print ('unknown')
-        #    unknown = True
-        # elif b[0] == b[1] == b[2] == b[3] == 1:
-        #     light_state = 4
-        # elif b[0] > 0 and b[1] > 0 and b[2] > 0 and b[3] > 0:
-        #    img_np = cv2.resize(processed_img[b[0]:b[2], b[1]:b[3]], (32, 32))
-        #    self.light_classifier.get_classification(img_np)
-        #    light_state = self.light_classifier.signal_status
-        #    print("light state predicted: ", light_state)
-        #    print("light state ground truth: ", light.state)
-        #    print("\n")
-
 
         return light_state
 
