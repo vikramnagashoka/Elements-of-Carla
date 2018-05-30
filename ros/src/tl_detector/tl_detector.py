@@ -160,7 +160,7 @@ class TLDetector(object):
 
         if not self.has_image:
             self.prev_light_loc = None
-            return False
+            return TrafficLight.UNKNOWN
 
          
 
@@ -171,8 +171,7 @@ class TLDetector(object):
         else:
             self.camera_image.encoding = 'rgb8'
 
-        input_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")      
-        
+        input_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")
 
         width, height, _ = input_image.shape
         x_start = int(width * 0.10)
@@ -184,42 +183,35 @@ class TLDetector(object):
         processed_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB)
 
         light_state = TrafficLight.UNKNOWN
-        light_state_via_msg = None  
-
+        light_state_via_msg = None
 
         img_full_np = np.asarray(processed_img, dtype="uint8" )
 
-        b = self.light_classifier.get_bounding_box(img_full_np)
+        self.light_classifier.get_class(processed_img)
+        light_state = self.light_classifier.signal_status
         
-        print("Bounding box: ", b)   
-            
-        if b == None:
-           print ('unknown')
-           unknown = True
-        elif b[0] == b[1] == b[2] == b[3] == 1:
-            light_state = 4
-        elif b[0] > 0 and b[1] > 0 and b[2] > 0 and b[3] > 0:
-           img_np = cv2.resize(processed_img[b[0]:b[2], b[1]:b[3]], (32, 32))
-           self.light_classifier.get_classification(img_np)
-           light_state = self.light_classifier.signal_status
-           print("light state predicted: ", light_state)
-           print("light state ground truth: ", light.state)
-           print("\n")
+        print("light state predicted: ", light_state)
+        print("light state ground truth: ", light.state)
 
-        #return light_state
-        # print("light state function")
-        # print(type(light.state))
+        # b = self.light_classifier.get_bounding_box(img_full_np)
+        
+        # print("Bounding box: ", b)   
+            
+        # if b == None:
+        #    print ('unknown')
+        #    unknown = True
+        # elif b[0] == b[1] == b[2] == b[3] == 1:
+        #     light_state = 4
+        # elif b[0] > 0 and b[1] > 0 and b[2] > 0 and b[3] > 0:
+        #    img_np = cv2.resize(processed_img[b[0]:b[2], b[1]:b[3]], (32, 32))
+        #    self.light_classifier.get_classification(img_np)
+        #    light_state = self.light_classifier.signal_status
+        #    print("light state predicted: ", light_state)
+        #    print("light state ground truth: ", light.state)
+        #    print("\n")
+
 
         return light_state
-
-        #if(not self.has_image):
-        #    self.prev_light_loc = None
-        #    return False
-
-        #cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-
-        #Get classification
-        #return self.light_classifier.get_classification(cv_image)
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its

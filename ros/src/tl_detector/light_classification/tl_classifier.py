@@ -38,7 +38,9 @@ class TLClassifier(object):
 
         #tensorflow localization/detection model
         model = 'ssd_mobilenet_v1_coco_11_06_2017' 
-        PATH_TO_CKPT = model + '/frozen_inference_graph.pb'
+        #PATH_TO_CKPT = model + '/frozen_inference_graph.pb'
+
+        PATH_TO_CKPT = 'frozen.pb'
         
         # setup tensorflow graph
         self.detection_graph = tf.Graph()
@@ -56,11 +58,55 @@ class TLClassifier(object):
             self.sess = tf.Session(graph=self.detection_graph, config=config)
             self.image_tensor = self.detection_graph.get_tensor_by_name('image_tensor:0')
 
-              
             self.boxes = self.detection_graph.get_tensor_by_name('detection_boxes:0')
             self.scores =self.detection_graph.get_tensor_by_name('detection_scores:0')
             self.classes = self.detection_graph.get_tensor_by_name('detection_classes:0')
             self.num_detections =self.detection_graph.get_tensor_by_name('num_detections:0')
+
+
+
+    def get_class(self, image):
+        with self.detection_graph.as_default():
+              image_expanded = np.expand_dims(image, axis=0)
+              (boxes, scores, classes, num_detections) = self.sess.run(
+                  [self.boxes, self.scores, self.classes, self.num_detections],
+                  feed_dict={self.image_tensor: image_expanded})
+
+        boxes=np.squeeze(boxes)                 #bounding boxes
+        classes = list(np.squeeze(classes))     
+        scores = np.squeeze(scores)
+
+        if scores[0] < 0.4:
+            self.signal_status = TrafficLight.UNKNOWN
+            return self.signal_status
+        else:
+            #find largest boounding box
+            max_box = 0
+            index = 0
+            i = 0
+            for box in boxes:
+                box_h = box[2] - box[0]
+                box_w = box[3] - box[1]
+
+                if box_h * box_w > max_box:
+                    max_box = box_h * box_w
+                    index = i
+                    
+                i += 1
+
+            result_class = classes[index] 
+            if result_class == 2:
+                self.signal_status = TrafficLight.RED
+            elif result_class == 1:
+                self.signal_status = TrafficLight.GREEN
+            elif result_class == 3:
+                self.signal_status = TrafficLight.YELLOW
+            else:
+                self.signal_status = TrafficLight.UNKNOWN
+
+            return self.signal_status
+
+        
 
     def get_bounding_box(self, image):
         with self.detection_graph.as_default():
@@ -102,10 +148,6 @@ class TLClassifier(object):
                 
                 box = [int(boxes[box_index][0]*height), int(boxes[box_index][1]*width), int(boxes[box_index][2]*height), int(boxes[box_index][3]*width)]
                 box_index += 1
-                if box[1] > box[3]:
-                    print("wrong box")  
-                    #box[1] = b[3] - 50
-
                 box_h = box[2] - box[0]
                 box_w = box[3] - box[1]
                 
