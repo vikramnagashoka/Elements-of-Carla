@@ -26,6 +26,8 @@ ACC_FACTOR = 1.0
 DECEL_FACTOR = 1.0
 MAX_VEL_FACTOR = 1.0
 WPS_CORRECTION = 3
+VELP_BIAS = 1.0
+VELM_BIAS = 1.0
 
 class WaypointUpdater(object):
 
@@ -34,7 +36,7 @@ class WaypointUpdater(object):
 
         # Parameters
         self.accel_limit = rospy.get_param('~/twist_controller/accel_limit', 1.0) * ACC_FACTOR
-        self.min_decel = rospy.get_param('~/twist_controller/decel_limit', -1.0) * DECEL_FACTOR
+        self.min_decel = rospy.get_param('~/twist_controller/decel_limit', -0.5) * DECEL_FACTOR
         self.speed_limit = rospy.get_param('/waypoint_loader/velocity') * MAX_VEL_FACTOR
         self.speed_limit = self.speed_limit * 1000.0 / 3600.  # m/s
 
@@ -70,7 +72,7 @@ class WaypointUpdater(object):
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(10)
+        rate = rospy.Rate(50)
         while not rospy.is_shutdown():
 
             # Compute common state data for all actions.
@@ -110,9 +112,7 @@ class WaypointUpdater(object):
 
         # Red light detected
         if (self.traffic_waypoint_idx > -1 and self.closest_waypoint_idx <= self.traffic_waypoint_idx):
-
             dist_to_tl = self.distance(self.traffic_waypoint_idx)
-            #rospy.loginfo("WUP: tl=%s, dist=%s, vel=%s", self.traffic_waypoint_idx, dist_to_tl, self.current_twist.linear.x)
             return 'SLOWDOWN', {'dist': dist_to_tl}
 
         return 'BASE', {}
@@ -124,61 +124,56 @@ class WaypointUpdater(object):
 
     def limit_speed(self, current_vel, next_vel, dist):
 
-        vel2 = current_vel*current_vel
-
-        # Get the maximum possible velocity at the next waypoint based on the current velocity and maximum acceleration
-        max_velocity = math.sqrt(max(vel2 + self.accelx2 * dist, 0.0))
-
-        # Do not go faster than the speed limit            
-        if (max_velocity > self.speed_limit):
-            max_velocity = self.speed_limit
-
-        # Get the minimum possible velocity at the next waypoint based on the current velocity and maximum deceleration
-        min_velocity = math.sqrt(max(vel2 + self.decelx2 * dist, 0.0))
+        max_velocity = current_vel + VELP_BIAS
+        min_velocity = current_vel - VELM_BIAS
 
         # Make sure the velocity stays within calculated bounds
         if (next_vel > max_velocity):
-            return max_velocity
+            ret_vel = max_velocity
         elif (next_vel < min_velocity):
-            return min_velocity
+            ret_vel = min_velocity
+        else:
+            ret_vel = next_vel;
 
-        return next_vel
+        # Do not go faster than the speed limit
+        if (ret_vel > self.speed_limit):
+            ret_vel = self.speed_limit
+
+        return ret_vel
 
     def slowdown_waypoints(self, dist):
 
-        flag_stop = False
-        dist_brake = dist
+        dist_brake = dist - self.dist_to_closest_waypoint
         dist_next = self.dist_to_closest_waypoint
         velocity = self.current_twist.linear.x
         waypoints = []
+        end_wp = min(self.closest_waypoint_idx+LOOKAHEAD_WPS, self.n_waypoints)
 
-        end_wp = min(self.closest_waypoint_idx+LOOKAHEAD_WPS-1, self.n_waypoints-1)
-        #rospy.loginfo("WUP: slow down, closest=%s, traffic=%s", self.closest_waypoint_idx, self.traffic_waypoint_idx)
         for idx in range(self.closest_waypoint_idx, end_wp):
 
             # All waypoints after the traffic light have zero velocity
-            if (idx == self.traffic_waypoint_idx or flag_stop == True):
+            if (idx > self.traffic_waypoint_idx):
 
-                flag_stop = True
                 velocity = 0.0
 
             else:
 
                 # Get the set velocity for the current waypoint
                 wp_velocity = self.original_waypoints.waypoints[idx].twist.twist.linear.x
-                #wp_velocity = self.limit_speed(velocity, wp_velocity, dist_next)
-                #dist_next = self.euc_distances[idx]
+                lim_velocity = self.limit_speed(velocity, wp_velocity, dist_next)
+                dist_next = self.euc_distances[idx]
 
                 # Calculate velocity at the next waypoint
-                velocity = math.sqrt(max(-self.decelx2 * dist_brake, 0.0))
+                br_velocity = math.sqrt(max(-self.decelx2 * dist_brake, 0.0))
                 dist_brake = dist_brake - self.euc_distances[idx]
 
-                velocity = min(wp_velocity, velocity)
+                velocity = min(lim_velocity, br_velocity)
 
                 if velocity < 0.1:
                     velocity = 0.0
 
-            #rospy.loginfo("WUP: slow cvel=%s, vel=%s, dist=%s", self.current_twist.linear.x, velocity, dist_brake)
+#            if (idx == self.closest_waypoint_idx):
+#                rospy.loginfo("WUP: %.4f; %.4f; %.4f; %.4f; %.4f; %.4f; %.4f; 0", self.current_twist.linear.x, velocity, wp_velocity, lim_velocity, br_velocity, self.pose.position.x, self.pose.position.y)
 
             # Create the waypoint
             waypoint = Waypoint()
@@ -193,17 +188,18 @@ class WaypointUpdater(object):
         dist = self.dist_to_closest_waypoint
         velocity = self.current_twist.linear.x
         waypoints = []
+        end_wp = min(self.closest_waypoint_idx+LOOKAHEAD_WPS, self.n_waypoints)
 
-        end_wp = min(self.closest_waypoint_idx+LOOKAHEAD_WPS-1, self.n_waypoints-1)
-        #rospy.loginfo("WUP: base")
         for idx in range(self.closest_waypoint_idx, end_wp):
 
             # Get the set velocity for the current waypoint
             wp_velocity = self.original_waypoints.waypoints[idx].twist.twist.linear.x
-            velocity = self.limit_speed(velocity, wp_velocity, dist)
+            lim_velocity = self.limit_speed(velocity, wp_velocity, dist)
+            velocity = lim_velocity
             dist = self.euc_distances[idx]
 
-            #rospy.loginfo("WUP: base cvel=%s, vel=%s, limit=%s", self.current_twist.linear.x, velocity, self.speed_limit)
+#            if (idx == self.closest_waypoint_idx):
+#                rospy.loginfo("WUP: %.4f; %.4f; %.4f; %.4f; %.4f; %.4f; %.4f; 1", self.current_twist.linear.x, velocity, wp_velocity, lim_velocity, -2, self.pose.position.x, self.pose.position.y)
 
             # Create the waypoint
             waypoint = Waypoint()
