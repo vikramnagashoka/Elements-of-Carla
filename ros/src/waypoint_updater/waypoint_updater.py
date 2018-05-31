@@ -172,6 +172,9 @@ class WaypointUpdater(object):
                 if velocity < 0.1:
                     velocity = 0.0
 
+                if (self.current_twist.linear.x < 0.2 and (self.traffic_waypoint_idx - self.closest_waypoint_idx) <= 2):
+                    velocity = 0.0
+
 #            if (idx == self.closest_waypoint_idx):
 #                rospy.loginfo("WUP: %.4f; %.4f; %.4f; %.4f; %.4f; %.4f; %.4f; 0", self.current_twist.linear.x, velocity, wp_velocity, lim_velocity, br_velocity, self.pose.position.x, self.pose.position.y)
 
