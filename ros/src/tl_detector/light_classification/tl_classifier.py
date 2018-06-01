@@ -58,7 +58,7 @@ class TLClassifier(object):
         classes = list(np.squeeze(classes))     
         scores = np.squeeze(scores)
 
-        if len(scores) == 0 or scores[0] < 0.4:
+        if len(scores) == 0 or scores[0] < 0.2:
             self.signal_status = TrafficLight.UNKNOWN
             return self.signal_status
         else:

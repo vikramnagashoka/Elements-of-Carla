@@ -179,8 +179,8 @@ class TLDetector(object):
         self.light_classifier.get_class(input_image)
         light_state = self.light_classifier.signal_status
         
-        print("light state predicted: ", light_state)
-        print("light state ground truth: ", light.state)
+        #print("light state predicted: ", light_state)
+        #print("light state ground truth: ", light.state)
 
         return light_state
 
@@ -193,6 +193,9 @@ class TLDetector(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
+
+        # return -1, TrafficLight.Unknown
+
         traffic_light = None
         light_idx = None
 
@@ -216,7 +219,7 @@ class TLDetector(object):
                     traffic_light = light
                     light_idx = temp_idx
 
-        if traffic_light:
+        if traffic_light and diff < 200:
             state = self.get_light_state(traffic_light)
             return light_idx, state
 
