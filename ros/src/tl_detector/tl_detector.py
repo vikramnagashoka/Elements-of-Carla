@@ -28,8 +28,6 @@ class TLDetector(object):
         self.waypoints_2d = None
         self.waypoint_tree = None
 
-        sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         '''
         /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
@@ -38,16 +36,13 @@ class TLDetector(object):
         simulator. When testing on the vehicle, the color state will not be available. You'll need to
         rely on the position of the light and the camera image to predict it.
         '''
-        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
-        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
 
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
 
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
-        self.bridge = CvBridge()
-        print("before initialization")  
+        self.bridge = CvBridge()  
         self.light_classifier = TLClassifier()
         self.listener = tf.TransformListener()
 
@@ -55,6 +50,11 @@ class TLDetector(object):
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0
+
+        sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
+        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
 
         rospy.spin()
 
@@ -83,13 +83,12 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
 
         """
+        
         self.has_image = True
-
         self.camera_image = msg
 
         if self.waypoint_tree:
             light_wp, state = self.process_traffic_lights()
-
 
         '''
         Publish upcoming red lights at camera frequency.
@@ -105,7 +104,6 @@ class TLDetector(object):
             light_wp = light_wp if state == TrafficLight.RED else -1
             self.last_wp = light_wp
             self.upcoming_red_light_pub.publish(Int32(light_wp))
-
         else:
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
@@ -123,7 +121,7 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-
+        
         closest_idx = self.waypoint_tree.query([x, y], 1)[1]
 
         # Check if closest is ahead or behind vehicle
@@ -137,9 +135,9 @@ class TLDetector(object):
 
         val = np.dot(cl_vect-prev_vect, pos_vect-cl_vect)
 
-        if val > 0 and forward:
+        if val > 0 and forward == True:
             closest_idx = (closest_idx + 1) % len(self.waypoints_2d)
-        elif val < 0 and not forward:
+        elif val < 0 and forward == False:
             closest_idx = (closest_idx - 1) % len(self.waypoints_2d)
 
         return closest_idx
@@ -161,7 +159,7 @@ class TLDetector(object):
 
         if not self.has_image:
             self.prev_light_loc = None
-            return False
+            return TrafficLight.UNKNOWN
 
          
 
@@ -172,55 +170,19 @@ class TLDetector(object):
         else:
             self.camera_image.encoding = 'rgb8'
 
-        
-        input_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")      
-        
-
-        width, height, _ = input_image.shape
-        x_start = int(width * 0.10)
-        x_end = int(width * 0.90)
-        y_start = 0
-        y_end = int(height * 0.85)
-        processed_img = input_image[y_start:y_end, x_start:x_end]
-
-        processed_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB)
+        input_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")
 
         light_state = TrafficLight.UNKNOWN
-        light_state_via_msg = None  
+        light_state_via_msg = None
 
 
-        img_full_np = np.asarray(processed_img, dtype="uint8" )
-
-        b = self.light_classifier.get_bounding_box(img_full_np)
+        self.light_classifier.get_class(input_image)
+        light_state = self.light_classifier.signal_status
         
-        print(b)
-            
-        if b == None:
-           print ('unknown')
-           unknown = True
-        elif b[0] > 0 and b[1] > 0 and b[2] > 0 and b[3] > 0:
-           img_np = cv2.resize(processed_img[b[0]:b[2], b[1]:b[3]], (32, 32))
-           self.light_classifier.get_classification(img_np)
-           light_state = self.light_classifier.signal_status
-           print("light state predicted: ", light_state)
-           print("light state ground truth: ", light.state)
-           print("\n")
+#        print("light state predicted: ", light_state)
+#        print("light state ground truth: ", light.state)
 
-        #return light_state
-        # print("light state function")
-        # print(type(light.state))
-        
-        # print(light.state)
-        return light.state
-
-        #if(not self.has_image):
-        #    self.prev_light_loc = None
-        #    return False
-
-        #cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-
-        #Get classification
-        #return self.light_classifier.get_classification(cv_image)
+        return light_state
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
@@ -246,7 +208,6 @@ class TLDetector(object):
                 # Get stop line waypoint index
                 line = stop_line_positions[i]
                 temp_idx = self.get_closest_waypoint(line[0], line[1], False)
-                #temp_idx = self.traffic_light_waypoints[i]
 
                 # Find closest stopline waypoint index
                 d = temp_idx - car_idx
@@ -255,7 +216,7 @@ class TLDetector(object):
                     traffic_light = light
                     light_idx = temp_idx
 
-        if traffic_light:
+        if traffic_light and diff < 200:
             state = self.get_light_state(traffic_light)
             return light_idx, state
 
