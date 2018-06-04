@@ -21,7 +21,7 @@ as well as to verify your TL classifier.
 
 '''
 
-LOOKAHEAD_WPS = 30 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 60 # Number of waypoints we will publish. You can change this number
 DECEL_FACTOR = 1.5
 MAX_VEL_FACTOR = 1.0
 WPS_CORRECTION = 3
@@ -68,7 +68,7 @@ class WaypointUpdater(object):
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(50)
+        rate = rospy.Rate(25)
         while not rospy.is_shutdown():
 
             # Compute common state data for all actions.
