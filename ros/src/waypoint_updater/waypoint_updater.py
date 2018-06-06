@@ -137,8 +137,8 @@ class WaypointUpdater(object):
         velocity = self.current_twist.linear.x
         decelx2 = max(-self.decelx2, velocity ** 2 / float(dist))
         dist_brake = dist - self.dist_to_closest_waypoint
-        waypoints = []
         end_wp = min(self.closest_waypoint_idx+LOOKAHEAD_WPS, self.n_waypoints)
+        waypoints = [None] * (end_wp - self.closest_waypoint_idx)
 
         for idx in range(self.closest_waypoint_idx, end_wp):
 
@@ -160,21 +160,21 @@ class WaypointUpdater(object):
                 if velocity < 0.1:
                     velocity = 0.0
 
-                if self.current_twist.linear.x < 0.2 and (self.traffic_waypoint_idx - self.closest_waypoint_idx) <= 2:
+                if self.current_twist.linear.x < 0.2 and self.traffic_waypoint_idx - self.closest_waypoint_idx <= 2:
                     velocity = 0.0
 
             # Create the waypoint
             waypoint = Waypoint()
             waypoint.pose = self.waypoints[idx].pose
             waypoint.twist.twist.linear.x = velocity
-            waypoints.append(waypoint)
+            waypoints[idx - self.closest_waypoint_idx] = waypoint
 
         return self.build_lane(waypoints)
 
     def base_waypoints(self):
         velocity = self.current_twist.linear.x
-        waypoints = []
         end_wp = min(self.closest_waypoint_idx+LOOKAHEAD_WPS, self.n_waypoints)
+        waypoints = [None] * (end_wp - self.closest_waypoint_idx)
 
         for idx in range(self.closest_waypoint_idx, end_wp):
 
@@ -187,7 +187,7 @@ class WaypointUpdater(object):
             waypoint = Waypoint()
             waypoint.pose = self.waypoints[idx].pose
             waypoint.twist.twist.linear.x = velocity
-            waypoints.append(waypoint)
+            waypoints[idx - self.closest_waypoint_idx] = waypoint
 
         return self.build_lane(waypoints)
 
@@ -215,11 +215,9 @@ class WaypointUpdater(object):
             self.waypoint_tree = cKDTree(self.waypoints_2d, leafsize=1)
 
             # Euclidean distances from each waypoint to the next
-            self.euc_distances = np.empty(self.n_waypoints - 1, dtype=float)
-            for i in range(self.n_waypoints - 1):
-                self.euc_distances[i] = self.euclidean_distance(
-                    self.waypoints[i].pose.pose.position,
-                    self.waypoints[i + 1].pose.pose.position)
+            iterator = (self.euclidean_distance(self.waypoints[i].pose.pose.position, self.waypoints[i + 1].pose.pose.position)
+                        for i in range(self.n_waypoints - 1))
+            self.euc_distances = np.fromiter(iterator, float, self.n_waypoints - 1)
 
     def traffic_cb(self, msg):
         idx = msg.data

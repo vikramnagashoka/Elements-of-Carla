@@ -7,7 +7,6 @@ from styx_msgs.msg import Lane
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from light_classification.tl_classifier import TLClassifier
-import tf
 import yaml
 import numpy as np
 from scipy.spatial import cKDTree
@@ -43,7 +42,6 @@ class TLDetector(object):
 
         self.bridge = CvBridge()
         self.light_classifier = TLClassifier()
-        self.listener = tf.TransformListener()
 
         self.state = TrafficLight.UNKNOWN
         self.last_state = TrafficLight.UNKNOWN
@@ -69,10 +67,8 @@ class TLDetector(object):
                                  for waypoint in waypoints.waypoints]
             self.waypoint_tree = cKDTree(self.waypoints_2d, leafsize=1)
 
-        self.traffic_light_waypoints = np.empty(len(self.config['stop_line_positions']), dtype=int)
-        for i, stop_line in enumerate(self.config['stop_line_positions']):
-            idx = self.get_closest_waypoint(stop_line[0], stop_line[1], False)
-            self.traffic_light_waypoints[i] = idx
+        self.traffic_light_waypoints = [self.get_closest_waypoint(stop_line[0], stop_line[1], False)
+                                        for stop_line in self.config['stop_line_positions']]
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -172,8 +168,7 @@ class TLDetector(object):
 
         light_state = TrafficLight.UNKNOWN
 
-        self.light_classifier.get_class(input_image)
-        light_state = self.light_classifier.signal_status
+        light_state = self.light_classifier.get_class(input_image)
 
         return light_state
 
