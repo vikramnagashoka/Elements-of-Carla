@@ -170,6 +170,9 @@ class TLDetector(object):
 
         light_state = self.light_classifier.get_class(input_image)
 
+        print("predicted state: ", light_state)
+        print("ground thruth: ", light.state)
+
         return light_state
 
     def process_traffic_lights(self):

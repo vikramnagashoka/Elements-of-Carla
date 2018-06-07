@@ -2,6 +2,8 @@ import os
 import numpy as np
 import tensorflow as tf
 from styx_msgs.msg import TrafficLight
+import rospy
+import yaml
 
 
 CWD = os.path.dirname(os.path.realpath(__file__))
@@ -13,8 +15,12 @@ class TLClassifier(object):
 
         os.chdir(CWD)
 
-        # tensorflow localization/detection model
-        PATH_TO_CKPT = 'sim_model.pb'
+        config_string = rospy.get_param("/traffic_light_config")
+        self.config = yaml.load(config_string)
+
+        PATH_To_CKPT = self.config['model']
+        
+        print("classifier model is: ", PATH_To_CKPT) 
 
         # setup tensorflow graph
         self.detection_graph = tf.Graph()

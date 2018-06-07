@@ -1,6 +1,7 @@
 camera_info:
   image_width: 800
   image_height: 600
+model: 'sim_model.pb'
 stop_line_positions:
     - [1148.56, 1184.65]
     - [1559.2, 1158.43]
