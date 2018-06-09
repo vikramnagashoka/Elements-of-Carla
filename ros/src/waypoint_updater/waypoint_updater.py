@@ -21,12 +21,8 @@ as well as to verify your TL classifier.
 
 '''
 
-LOOKAHEAD_WPS = 60 # Number of waypoints we will publish. You can change this number
-DECEL_FACTOR = 1.5
-MAX_VEL_FACTOR = 1.0
-WPS_CORRECTION = 3
-VELP_BIAS = 1.0
-VELM_BIAS = 1.0
+LOOKAHEAD_WPS = 20 # Number of waypoints we will publish. You can change this number
+WPS_CORRECTION = 3 # wps
 
 class WaypointUpdater(object):
 
@@ -34,8 +30,8 @@ class WaypointUpdater(object):
         rospy.init_node('waypoint_updater')
 
         # Parameters
-        self.min_decel = rospy.get_param('~/twist_controller/decel_limit', -0.5) * DECEL_FACTOR
-        self.speed_limit = rospy.get_param('/waypoint_loader/velocity') * MAX_VEL_FACTOR
+        self.min_decel = rospy.get_param('~/twist_controller/decel_limit', -1.0)
+        self.speed_limit = rospy.get_param('/waypoint_loader/velocity')
         self.speed_limit = self.speed_limit * 1000.0 / 3600.  # m/s
 
         # Subscribers
@@ -65,14 +61,18 @@ class WaypointUpdater(object):
         # Constants for speeding up execution
         self.decelx2 = 2.0 * self.min_decel
 
+        # Traffic light variables
+        self.tl_changed = True
+        self.able_to_stop = True
+        self.last_traffic_waypoint_idx = -1
+
         self.loop()
 
     def loop(self):
-        rate = rospy.Rate(25)
-        while not rospy.is_shutdown():
 
-            # Compute common state data for all actions.
-            self.compute_state()
+        rate = rospy.Rate(15)
+
+        while not rospy.is_shutdown():
 
             # Compute action
             action, context = self.desired_action()
@@ -84,27 +84,30 @@ class WaypointUpdater(object):
 
             rate.sleep()
 
-    def compute_state(self):
-
-        if self.pose and self.waypoint_tree:
-            # Closest waypoint
-            self.closest_waypoint_idx = self.get_closest_waypoint_idx()
-
-            # Distance to closest waypoint
-            self.dist_to_closest_waypoint = self.euclidean_distance(
-                self.pose.position,
-                self.waypoints[self.closest_waypoint_idx].pose.pose.position
-            )
-
     def desired_action(self):
 
         if not (self.pose and self.waypoint_tree and self.current_twist):
             return None, {}
-
-        # Red light detected
+                 
+        # Red light detected ahead
         if self.closest_waypoint_idx <= self.traffic_waypoint_idx:
+
             dist_to_tl = self.distance(self.traffic_waypoint_idx)
-            return 'SLOWDOWN', {'dist': dist_to_tl}
+
+            # Check if we are able to stop before the traffic light (green might have turned yellow as we cross).
+            if self.tl_changed == True:
+                self.tl_changed = False
+
+                # Car break distance at maximum deceleration
+                break_distance = -self.current_velocity2/self.decelx2
+
+                if dist_to_tl > break_distance: 
+                    self.able_to_stop = True
+                else:
+                    self.able_to_stop = False
+
+            if self.able_to_stop == True:
+                return 'SLOWDOWN', {'dist': dist_to_tl}
 
         return 'BASE', {}
 
@@ -113,30 +116,10 @@ class WaypointUpdater(object):
             return self.slowdown_waypoints(**context)
         return self.base_waypoints(**context)
 
-    def limit_speed(self, current_vel, next_vel):
-
-        max_velocity = current_vel + VELP_BIAS
-        min_velocity = current_vel - VELM_BIAS
-
-        # Make sure the velocity stays within calculated bounds
-        if next_vel > max_velocity:
-            ret_vel = max_velocity
-        elif next_vel < min_velocity:
-            ret_vel = min_velocity
-        else:
-            ret_vel = next_vel
-
-        # Do not go faster than the speed limit
-        if ret_vel > self.speed_limit:
-            ret_vel = self.speed_limit
-
-        return ret_vel
-
     def slowdown_waypoints(self, dist):
 
-        velocity = self.current_twist.linear.x
-        decelx2 = max(-self.decelx2, velocity ** 2 / float(dist))
         dist_brake = dist - self.dist_to_closest_waypoint
+        waypoints = []
         end_wp = min(self.closest_waypoint_idx+LOOKAHEAD_WPS, self.n_waypoints)
         waypoints = [None] * (end_wp - self.closest_waypoint_idx)
 
@@ -149,30 +132,31 @@ class WaypointUpdater(object):
 
                 # Get the set velocity for the current waypoint
                 wp_velocity = self.original_waypoints.waypoints[idx].twist.twist.linear.x
-                lim_velocity = self.limit_speed(velocity, wp_velocity)
 
                 # Calculate velocity at the next waypoint
                 br_velocity = math.sqrt(max(decelx2 * dist_brake, 0.0))
                 dist_brake = dist_brake - self.euc_distances[idx]
 
-                velocity = min(lim_velocity, br_velocity)
+                velocity = min(wp_velocity, br_velocity)
 
                 if velocity < 0.1:
                     velocity = 0.0
 
-                if self.current_twist.linear.x < 0.2 and self.traffic_waypoint_idx - self.closest_waypoint_idx <= 2:
+                # If the car stopped a few waypoints before a red traffic light, do not attempt to go any further
+                if self.current_twist.linear.x < 0.2 and (self.traffic_waypoint_idx - self.closest_waypoint_idx) <= 2:
                     velocity = 0.0
+
 
             # Create the waypoint
             waypoint = Waypoint()
             waypoint.pose = self.waypoints[idx].pose
             waypoint.twist.twist.linear.x = velocity
-            waypoints[idx - self.closest_waypoint_idx] = waypoint
+            waypoints.append(waypoint)
 
         return self.build_lane(waypoints)
 
     def base_waypoints(self):
-        velocity = self.current_twist.linear.x
+        waypoints = []
         end_wp = min(self.closest_waypoint_idx+LOOKAHEAD_WPS, self.n_waypoints)
         waypoints = [None] * (end_wp - self.closest_waypoint_idx)
 
@@ -180,8 +164,7 @@ class WaypointUpdater(object):
 
             # Get the set velocity for the current waypoint
             wp_velocity = self.original_waypoints.waypoints[idx].twist.twist.linear.x
-            lim_velocity = self.limit_speed(velocity, wp_velocity)
-            velocity = lim_velocity
+            velocity = wp_velocity
 
             # Create the waypoint
             waypoint = Waypoint()
@@ -199,6 +182,16 @@ class WaypointUpdater(object):
 
     def pose_cb(self, msg):
         self.pose = msg.pose
+
+        if self.waypoint_tree:
+            # Closest waypoint
+            self.closest_waypoint_idx = self.get_closest_waypoint_idx()
+           
+            # Distance to closest waypoint
+            self.dist_to_closest_waypoint = self.euclidean_distance(
+                self.pose.position,
+                self.waypoints[self.closest_waypoint_idx].pose.pose.position
+            )
 
     def waypoints_cb(self, lane):
 
@@ -228,8 +221,18 @@ class WaypointUpdater(object):
 
         self.traffic_waypoint_idx = idx
 
+        # Check if the traffic light has turned yellow
+        if self.last_traffic_waypoint_idx == -1 and self.traffic_waypoint_idx >= 0:
+            self.tl_changed = True
+
+        self.last_traffic_waypoint_idx = self.traffic_waypoint_idx    
+
     def current_twist_cb(self, msg):
         self.current_twist = msg.twist
+
+        # Car velocity
+        linear_vel = self.current_twist.linear
+        self.current_velocity2 = linear_vel.x ** 2# +  linear_vel.y ** 2
 
     def get_closest_waypoint_idx(self):
         x = self.pose.position.x
@@ -250,8 +253,8 @@ class WaypointUpdater(object):
 
             val = np.dot(cl_vect-prev_vect, pos_vect-cl_vect)
 
-            if (val > 0 and closest_idx < self.n_waypoints - 1):
-                closest_idx += 1
+            if val > 0 and closest_idx < self.n_waypoints-1:
+                closest_idx = closest_idx + 1
             else:
                 return closest_idx
 
@@ -264,7 +267,6 @@ class WaypointUpdater(object):
 
     def distance(self, wp2):
         return self.dist_to_closest_waypoint + self.euc_distances[self.closest_waypoint_idx:wp2].sum()
-
 
 if __name__ == '__main__':
     try:
