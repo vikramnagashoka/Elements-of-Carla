@@ -151,7 +151,6 @@ class TLDetector(object):
 
         """
 
-        # For testing, return light state provided by simulator
         if self.light_classifier is None:
             return TrafficLight.RED
 
