@@ -165,9 +165,6 @@ class TLDetector(object):
             self.camera_image.encoding = 'rgb8'
 
         input_image = self.bridge.imgmsg_to_cv2(self.camera_image, "rgb8")
-
-        light_state = TrafficLight.UNKNOWN
-
         light_state = self.light_classifier.get_class(input_image)
 
         #print("predicted state: ", light_state)
@@ -191,8 +188,6 @@ class TLDetector(object):
         # find the closest visible traffic light (if one exists)
         diff = len(self.waypoints.waypoints)
         light_idx = None
-        # traffic_light = None
-        # for temp_idx, light in zip(self.traffic_light_waypoints, self.lights):
         for temp_idx in self.traffic_light_waypoints:
 
             # Find closest stopline waypoint index
@@ -200,11 +195,9 @@ class TLDetector(object):
             if dist >= 0 and dist < diff:
                 diff = dist
                 light_idx = temp_idx
-                # traffic_light = light
 
         if light_idx and diff < 200:
             state = self.get_light_state()
-            # state = traffic_light.state
             return light_idx, state
 
         return -1, TrafficLight.UNKNOWN
