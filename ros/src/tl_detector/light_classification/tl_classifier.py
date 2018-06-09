@@ -18,9 +18,9 @@ class TLClassifier(object):
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
 
-        PATH_To_CKPT = self.config['model']
+        PATH_TO_CKPT = self.config['model']
         
-        print("classifier model is: ", PATH_To_CKPT) 
+        print("classifier model is: ", PATH_TO_CKPT) 
 
         # setup tensorflow graph
         self.detection_graph = tf.Graph()
