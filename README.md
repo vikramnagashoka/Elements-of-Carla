@@ -2,7 +2,7 @@
 Dmitry Pechyony pechyony@outlook.com  
 Andre Francisco andre_francisco@hotmail.com  
 Jose Bermeol jdbermeol@gmail.com    
-Vikram Nag Ashoka vikramnagashoka@gmail.com  
+Vikram Nag Ashoka vikramnag12@gmail.com  
 Asheesh Kashyap akashyap20@hotmail.com  
 
 -----------------------
