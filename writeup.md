@@ -19,13 +19,13 @@ Finally, as part of installing Object Detection API, we added the following line
 ### Datasets
 
 We used 3 datasets:   
-* the [dataset](https://www.dropbox.com/s/vaniv8eqna89r20/alex-lechner-udacity-traffic-light-dataset.zip?dl=0) created by [Alex Lechner](https://github.com/alex-lechner). This dataset has 917 images from simulator at 155 images from the test track. 
+* the [dataset](https://www.dropbox.com/s/vaniv8eqna89r20/alex-lechner-udacity-traffic-light-dataset.zip?dl=0) created by [Alex Lechner](https://github.com/alex-lechner). This dataset has 917 images from simulator and 155 images from the test track. 
 * the [dataset](https://drive.google.com/file/d/0B-Eiyn-CUQtxdUZWMkFfQzdObUE/view?usp=sharing) created by [Vatsal Srivastava](https://github.com/coldKnight). This dataset has 277 images from simulator and 159 images from the test track.
 * our own dataset of images extracted from [ROS bag file](https://drive.google.com/file/d/0B2_h37bMVw3iYkdJTlRSUlJIamM/view?usp=sharing) provided by Udacity. This dataset has 297 images from the test track and is available here (link TBD).
 
-Object Detection API expects the dataset to be in a single binary file TFRecord format. Fortunately, the first two datasets have already TFRecord files, one for simulated and one for real images. In the rest of this section we show how we created the last dataset.
+Object Detection API expects the dataset to be in a single-binary-file TFRecord format. Fortunately, the first two datasets have already TFRecord files, one for simulated and one for real images. In the rest of this section we show how we created the last dataset.
 
-ROS file can be replayed using `rosbag` tool of ROS.  `image_view` utility of ROS allows to save images published in a given topic. We created a launch script, called `export.launch` that runs `rosbag` and `image_view`:
+ROS bag file can be replayed using `rosbag` tool of ROS.  `image_view` utility of ROS allows to save images published in a given topic. We created a launch script, called `export.launch` that runs `rosbag` and `image_view`:
 
     <launch>
         <node pkg="rosbag" type="play" name="rosbag" args="<full path to ROS bag file>" />
@@ -34,7 +34,7 @@ ROS file can be replayed using `rosbag` tool of ROS.  `image_view` utility of RO
         </node>
     </launch>
 
-The parameter args in the second line of launch should have a full path to ROS bag file. `export.launch` script is stored in `ros\launch` directory. To extract the images we just need to run
+The parameter args in the second line of launch should have a full path to ROS bag file. `export.launch` script is stored in `ros\launch` directory. To extract the images from ROS bag file we just need to run
 
     roslaunch export.launch
 
@@ -44,8 +44,9 @@ We used [labelImg](https://github.com/tzutalin/labelImg) utility to annotate 297
 
     python create_real_camera_tf_record.py --data_dir=<path to the directory of images> --annotations_dir=labels --output_path=<path to the output file> --label_map_path=../label_mapping_lowercase.pbtxt 
 
-`create_real_camera_tf_record.py` is a simplified version of `create_pascal_tf_record.py` utility of Object Detection API and is stored in `ros/src/tl_detector/model_training` directory.
-`create_real_camera_tf_record.py` has a number of parameters. `data_dir` should point to the directory of images, `annotations_dir` should be a name of directory with XML files. Notice that due to limitations of `create_real_camera_tf_record.py`, `annotations_dir` should be a directory within `data_dir`. `output_path` is a path to the output TFRecord file. Finally, label_map_path is a path to the file that maps categorical labels in annotations files to numberic labels that will be used by Tensorflow. We used the following mapping:
+`create_real_camera_tf_record.py` is a simplified version of `create_pascal_tf_record.py` utility of Object Detection API and is stored in `ros/src/tl_detector/model_training` directory.  
+
+`create_real_camera_tf_record.py` has a number of parameters. `data_dir` should point to the directory of images, `annotations_dir` should be a name of directory with XML files. Notice that due to limitations of `create_real_camera_tf_record.py`, `annotations_dir` should be a directory within `data_dir`. `output_path` is a path to the output TFRecord file. Finally, `label_map_path` is a path to the file that maps categorical labels in annotations files to numberic labels that will be used by Tensorflow. We used the following mapping:
 
     item {
         id: 1
