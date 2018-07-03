@@ -19,9 +19,9 @@ Finally, as part of installing Object Detection API, we added the following line
 ### Datasets
 
 We used 3 datasets:   
-* the [dataset](https://www.dropbox.com/s/vaniv8eqna89r20/alex-lechner-udacity-traffic-light-dataset.zip?dl=0) created by [Alex Lechner](https://github.com/alex-lechner). This dataset has 917 images from simulator and 155 images from the test track. 
-* the [dataset](https://drive.google.com/file/d/0B-Eiyn-CUQtxdUZWMkFfQzdObUE/view?usp=sharing) created by [Vatsal Srivastava](https://github.com/coldKnight). This dataset has 277 images from simulator and 159 images from the test track.
-* our own dataset of images extracted from [ROS bag file](https://drive.google.com/file/d/0B2_h37bMVw3iYkdJTlRSUlJIamM/view?usp=sharing) provided by Udacity. This dataset has 297 images from the test track and is available here (link TBD).
+* Dataset 1: the [dataset](https://www.dropbox.com/s/vaniv8eqna89r20/alex-lechner-udacity-traffic-light-dataset.zip?dl=0) created by [Alex Lechner](https://github.com/alex-lechner). This dataset has 917 images from simulator and 155 images from the test track. 
+* Dataset 2: the [dataset](https://drive.google.com/file/d/0B-Eiyn-CUQtxdUZWMkFfQzdObUE/view?usp=sharing) created by [Vatsal Srivastava](https://github.com/coldKnight). This dataset has 277 images from simulator and 159 images from the test track.
+* Dataset 3: our own dataset of images extracted from [ROS bag file](https://drive.google.com/file/d/0B2_h37bMVw3iYkdJTlRSUlJIamM/view?usp=sharing) provided by Udacity. This dataset has 297 images from the test track and is available [here](https://www.dropbox.com/s/ii4ddadp7lih7b4/dataset_ros.zip?dl=0).
 
 Object Detection API expects the dataset to be in a single-binary-file TFRecord format. Fortunately, the first two datasets have already TFRecord files, one for simulated and one for real images. In the rest of this section we show how we created the last dataset.
 
@@ -63,12 +63,18 @@ We used [labelImg](https://github.com/tzutalin/labelImg) utility to annotate 297
 
 This mapping is consistent with the mappping in two other datasets mentioned above. The mapping data stored in `label_mapping_lowercase.pbtxt` file in `ros/src/tl_detector/model_training` directory. 
 
-
 ### Training
 
+Traffic light detection module get a new image with the frequency of 15Hz. Hence, to process images in real-time, the traffic light detection model should score a new image within 1/15 seconds = 66 milliseconds. 
+Our model is based on a pre-trained SSD-MobileNet-V1-COCO model that is available [here](http://download.tensorflow.org/models/object_detection/ssd_mobilenet_v1_coco_2018_01_28.tar.gz). We chose this model because it was the only model with real-time inference that is compatible with version 1.3.0 of Tensorflow. The zipped model has 3 checkpoint files (with ckpt extension). We placed these files in a separate `models` directory. We also copied configuration file of the model, `<path to Object Detection API>/models/research/object_detection/samples/configs/ssd_mobilenet_v1_coco.config`, to the current directory. 
+
+    python train.py --train_dir=./models/train --pipeline_config_path=ssd_mobilenet_v1_coco.config
+
 #### Model for simulated images
+We used simulator images of Dataset 1 as a training set and simulator images Dataset 2 as a test set. 
 
 #### Model for real images
+We concatenated real images from all 3 datasets into a single training set. 
 
 ### Evaluation
 
