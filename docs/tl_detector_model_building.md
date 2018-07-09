@@ -1,5 +1,16 @@
 ## Traffic light detection
 
+### Contents
+1. [Environment Setup](#environment-setup)
+2. [Datasets](#datasets)
+3. [Training](#training)  
+    3.1 [Model for simulator images](#model-for-simulator-images)  
+    3.2 [Model for real images](#model-for-real-images)
+4. [Exporting the model](#exporting-the-model) 
+5. [Evaluation](#evaluation)  
+   5.1 [Model for simulator images](#model-for-simulator-images)  
+   5.2 [Model for real images](#model-for-real-images)
+
 ### Environment Setup
 
 We developed traffic light detection model using Object Detection API of Tensorflow. This model is deployed in [self-driving car](https://medium.com/udacity/how-the-udacity-self-driving-car-works-575365270a40) of Udacity, that has version 1.3 of Tensorflow and Titan X GPU. Hence, to prevent any potential incompatibility issues, we developed the model using the same version of Tensorflow. 
@@ -152,7 +163,7 @@ We used simulator images of Dataset 1 as a training and evaluation set. Simulato
 #### Model for real images
 We concatenated real images from all 3 datasets into a single training set. This training set can be downloaded from [here](https://www.dropbox.com/s/s28zz6ia9kafesw/images_ros_all.record?dl=0).  The configuration file for training this model is stored in repo in `ssd_mobilenet_v1_coco.config_sim` file. The model with the smallest loss was obtained after epoch 6651 and had a loss 0.4667.
 
-### Deployment
+### Exporting the model
 
 After training a model we exported it using the command
 
