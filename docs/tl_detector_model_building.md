@@ -1,6 +1,6 @@
 ## Traffic light detection
 
-### Contents
+### Table of Contents
 1. [Environment Setup](#environment-setup)
 2. [Datasets](#datasets)
 3. [Training](#training)  
