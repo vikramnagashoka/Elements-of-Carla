@@ -16,7 +16,7 @@
 
 ### Contents
 1. [Environment Setup](#environment-setup)
-2. [Datasets](#datasets)
+2. [Datasets](#datasets)  
     2.1 [Generation of dataset from ROS bag file](#generation-of-dataset-from-ros-bag-file)
 3. [Training](#training)  
     3.1 [Model for simulator images](#model-for-simulator-images)  
