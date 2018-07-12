@@ -1,8 +1,23 @@
 ## Traffic light detection
 
+[image1]: ./imgs/input1.png "sim green"
+[image2]: ./imgs/input2.png "sim yellow"
+[image3]: ./imgs/input3.png "sim red"
+[image4]: ./imgs/input4.png "real red"
+[image5]: ./imgs/input5.png "real yellow"
+[image6]: ./imgs/input6.png "real green"
+[image7]: ./imgs/left0025.png "predicted sim red"
+[image8]: ./imgs/left0402.png "predicted sim yellow"
+[image9]: ./imgs/left0490.png "predicted sim green"
+[image10]: ./imgs/left0430.png "predicted sim false"
+[image11]: ./imgs/left0300.png "predicted real red"
+[image12]: ./imgs/left0500.png "predicted real yellow"
+[image13]: ./imgs/left0100.png "predicted real yellow"
+
 ### Contents
 1. [Environment Setup](#environment-setup)
 2. [Datasets](#datasets)
+    2.1 [Generation of dataset from ROS bag file](#generation-of-dataset-from-ros-bag-file)
 3. [Training](#training)  
     3.1 [Model for simulator images](#model-for-simulator-images)  
     3.2 [Model for real images](#model-for-real-images)
@@ -34,7 +49,25 @@ We used 3 datasets:
 * Dataset 2: the [dataset](https://drive.google.com/file/d/0B-Eiyn-CUQtxdUZWMkFfQzdObUE/view?usp=sharing) created by [Vatsal Srivastava](https://github.com/coldKnight). This dataset has 277 images from simulator and 159 images from the test track.
 * Dataset 3: our own dataset of images extracted from [ROS bag file](https://drive.google.com/file/d/0B2_h37bMVw3iYkdJTlRSUlJIamM/view?usp=sharing) provided by Udacity. This dataset has 297 images from the test track and is available [here](https://www.dropbox.com/s/ii4ddadp7lih7b4/dataset_ros.zip?dl=0).
 
+Each image has one or more annotation rectangles, indicating locations and colors of traffic light. Annotations are stored separately and are not part of images. Here are examples of simulator images with annotations drawn on top of them:
+
+![alt text][image1]
+
+![alt text][image2]
+
+![alt text][image3]
+
+Similarly, here are examples of real images, with annotations drawn on top of them:
+
+![alt text][image4]
+
+![alt text][image5]
+
+![alt text][image6]
+
 Object Detection API expects the dataset to be in a single-binary-file TFRecord format. Fortunately, the first two datasets have already TFRecord files, one for simulated and one for real images. In the rest of this section we show how we created the last dataset.
+
+#### Generation of dataset from ROS bag file
 
 ROS bag file can be replayed using `rosbag` tool of ROS.  `image_view` utility of ROS allows to save images published in a given topic. We created a launch script, called `export.launch` that runs `rosbag` and `image_view`:
 
@@ -173,11 +206,23 @@ This command creates a `fine_tuned_model/frozen_inference_graph.pb` file. We ren
 
 ### Evaluation
 
-In the evaluation process we considered only the detected box with the highest score. If this score is at least 0.1 then we defined that the model detected a light in the image, otherwise we define that the model does not detect any light. The same logic is used by traffic light detector module when applying the model in real-time. 
+In the evaluation process we considered only the detected bounding box with the highest score. If this score is at least 0.1 then we defined that the model detected a light in the image, otherwise we define that the model does not detect any light. The same logic is used by traffic light detector module when applying the model in real-time. 
 
 #### Model for simulator images 
 
-We evaluated the model over random 5 images from the training set and random 10 images from the test set. These images are stored in `ros/src/tl_detector/model_training/test_images` folder. The evaluation  is done in `ros/src/tl_detector/model_training/object_detection_evaluation_sim.ipynb` notebook. The model has perfect detections in 14 out of 15 images. In a single problematic image all lights are very small. But nevertheless in that image the detection with the highest score is correct (red light) and this is sufficient for practical purposes.  
+We evaluated the model over random 5 images from the training set and random 10 images from the test set. These images are stored in `ros/src/tl_detector/model_training/test_images` folder. The evaluation  is done in `ros/src/tl_detector/model_training/object_detection_evaluation_sim.ipynb` notebook. The model has perfect detections in 14 out of 15 images. Here are sample images with perfect detections:
+
+![alt text][image7]
+
+![alt text][image8]
+
+![alt text][image9]
+
+In a single problematic image all lights are very small:
+
+![alt text][image10]
+
+But nevertheless in this image the detection with the highest score is correct (red light) and this is sufficient for practical purposes.  
 
 #### Model for real images
 
@@ -190,4 +235,10 @@ For the purpose of evaluation, we labelled manually all images with the labels '
 
 Notice that when there is no visible light but the model detected a green light, the car continues to drive as usual and we do not count this case as a wring detection. Classification error is the number of images where there is a visible light, the model detected it, but classified with the wrong color. 
 
-Our model has 11 images with detection error and 8 images with classification error. Overall the model generated correct detections in 2011/2030*100%=99% of the images.
+Our model has 11 images with detection error and 8 images with classification error. Overall the model generated correct detections in 2011/2030*100%=99% of the images. Here are sample images with correct predictions: 
+
+![alt text][image11]
+
+![alt text][image12]
+
+![alt text][image13]
