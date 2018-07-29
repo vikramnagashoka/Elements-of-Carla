@@ -67,11 +67,12 @@ In the second version of the model we used 2 ROS bag files from on-site test to 
 Datasets 4 and 6 are available [here](https://www.dropbox.com/s/jda6cjdg3hbqwiu/bag1.zip?dl=0), datasets 5 and 7 are available [here](https://www.dropbox.com/s/mctg7sobxo2g118/bag2.zip?dl=0).
 
 The following table summarizes ROS bag files used to develop the models:
+
 | ID  | Description | Used to train V1 model | Used to train V2 model | Number of images | Used in datasets | URL | 
 |:-----:|:-----:|:----------------:|:----------------:|:----------------:|:-----:|:----:|
-|    1   | Provided by Udacity  |    Yes      |     Yes             |    2030              |  3 | [link](https://drive.google.com/file/d/0B2_h37bMVw3iYkdJTlRSUlJIamM/view?usp=sharing)
-|    2   | Recorded in the on-site test of V1 model       |  No        |         Yes         |      985            |  4,6  | [link](https://www.amazon.com/clouddrive/share/DSiD50fEvBj6saBTVquQB7uRrLgW9VmSf2XloZD42d3)
-|    3   | Recorded in the on-site test of V1 model       |   No       |       Yes           |      1193            |  5,7  | [link](https://www.amazon.com/clouddrive/share/BCsAUREZxQH9wNQUAB2fWdJIkyQvl30hGRoyPQ1lOGZ)
+|    1   | Provided by Udacity  |    Yes      |     Yes             |    2030              |  3 | [link](https://drive.google.com/file/d/0B2_h37bMVw3iYkdJTlRSUlJIamM/view?usp=sharing) |
+|    2   | Recorded in the on-site test of V1 model       |  No        |         Yes         |      985            |  4,6  | [link](https://www.amazon.com/clouddrive/share/DSiD50fEvBj6saBTVquQB7uRrLgW9VmSf2XloZD42d3) |
+|    3   | Recorded in the on-site test of V1 model       |   No       |       Yes           |      1193            |  5,7  | [link](https://www.amazon.com/clouddrive/share/BCsAUREZxQH9wNQUAB2fWdJIkyQvl30hGRoyPQ1lOGZ) |
 
 
 Each image with traffic lights has one or more annotation rectangles, indicating locations and colors of traffic light. Annotations are stored separately and are not part of images. Here are examples of simulator images with annotations drawn on top of them:
@@ -136,7 +137,7 @@ This mapping is consistent with the mappping in two other datasets mentioned abo
 
 #### Generation of dataset without annotations
 
-We modified `create_real_camera_tf_record.py` script to create TFRecord dataset with images without annotations. In all images in this dataset there is no visible traffic light and the lists of bounding boxes and labels are empty. The modified script is called `create_real_camera_tf_no_annotations.py` and is stored in `ros/src/tl_detector/model_training` directory. This script has the same parameters as `create_real_camera_tf_record.py`. Currently the identifiers of images without traffic light are hard-coded in `create_real_camera_tf_no_annotations.py`, but we plan to change this in the future.
+We modified `create_real_camera_tf_record.py` script to create TFRecord dataset with images without annotations. In all images in this dataset there is no visible traffic light and the lists of bounding boxes and labels are empty. The modified script is called `create_real_camera_tf_record_no_annotations.py` and is stored in `ros/src/tl_detector/model_training` directory. This script has the same parameters as `create_real_camera_tf_record.py`. Currently the identifiers of images without traffic light are hard-coded in `create_real_camera_tf_record_no_annotations.py`, but we plan to change this in the future.
 
 ## Training
 
@@ -225,7 +226,7 @@ to
 
 The modified `trainer.py` and `input_builder.py` files are stored in `ros/src/tl_detector/model_training/changed_tensorflow_files` folder.
 
-### Environment setup - second version the model for real images
+### Environment setup - second version of the model for real images
 
 Object Detection API uses as a training loss an average of localization and classification errors. While this loss function is convenient for training the model, it is less useful for evaluation of the traffic light detection performance. We define **traffic light error** as the sum of *traffic light detection error* and *traffic light classification error*.
 
@@ -287,11 +288,17 @@ We used simulator images of Dataset 1 as a training and evaluation set. Simulato
 
 #### First version
 
-We concatenated real images from all 3 datasets into a single training set. This training set can be downloaded from [here](https://www.dropbox.com/s/s28zz6ia9kafesw/images_ros_all.record?dl=0). The configuration file for training this model is stored in `ros/src/tl_detector/model_training/ssd_mobilenet_v1_coco.config_real` file. The model with the smallest loss was obtained after epoch 6651 and had a loss 0.4667.
+We concatenated real images from all 3 datasets into a single training set. This training set has a total of 611 images and can be downloaded from [here](https://www.dropbox.com/s/s28zz6ia9kafesw/images_ros_all.record?dl=0). The configuration file for training this model is stored in `ros/src/tl_detector/model_training/ssd_mobilenet_v1_coco.config_real` file. The model with the smallest loss was obtained after epoch 6651 and had a loss 0.4667. We stored the training log file in `ros/src/tl_detector/model_training/training_logs/log_real.txt`.
 
 #### Second version
 
-The configuration file for training this model is stored in `ros/src/tl_detector/model_training/ssd_mobilenet_v1_coco.config_real_v2` file.
+We concatenated real images from all 7 datasets into a single training set. This training set has a total of 830 images and can be downloaded from [here](https://www.dropbox.com/s/coycrqxbr4zo50y/images_ros_all_bags.record?dl=0). 
+
+We also created a validation set from the images extracted from second and third ROS bag files. To speed up the evaluation process, we sampled 10% of the images from these files. The sampled validation images do not overlap with the training images used in datasets 4-7. We extracted and converted images to TFRecord format using `create_real_camera_tf_record_image_label.py` script. This script attaches a single label to an image if it contains a visible traffic, otherwise an image has an empty label. Also, all output images have an empty list of bounding boxes. Currently the true labels of the images are hard-coded in `create_real_camera_tf_record_image_label.py`, but we plan to change this in the future. `create_real_camera_tf_record_image_label.py` has the same parameters as `create_real_camera_tf_record.py` script and is stored in `ros/src/tl_detector/model_training` folder. The validation set has a total of 217 images and can be downloaded from [here](https://www.dropbox.com/s/sq0atdzgkh2kvlo/bag12_small.record?dl=0).
+
+The configuration file for training this model is stored in `ros/src/tl_detector/model_training/ssd_mobilenet_v1_coco.config_real_v2` file. The model with the smallest traffic light loss was obtained after epoch 10636. This model had 0 traffic light validation error and a training loss of 2.2583. We stored training and evaluation log files in `ros/src/tl_detector/model_training/training_logs/log_real_v2.txt` and `ros/src/tl_detector/model_training/training_logs/log_real_eval_v2.txt` respectively.
+
+Notice that this training loss is much larger than the one obtained in the first version of the model. That's because the first  version of the model was selected to minimize the training loss whereas the second version of the model was chosen to minimize validation error. 
 
 ## Exporting the model
 
