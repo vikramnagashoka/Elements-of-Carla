@@ -3,7 +3,7 @@
 ## System Integration Project
 In this project we implement the core functionality of the autonomous vehicle system, including traffic light detection, control, and waypoint following. The code was tested in the [self-driving car of Udacity](https://medium.com/udacity/how-the-udacity-self-driving-car-works-575365270a40):
 
-[![on-site test](https://img.youtube.com/vi/SaEBODFaAF8/0.jpg)](https://www.youtube.com/watch?v=SaEBODFaAF8) 
+[![on-site test](docs/imgs/test_screenshot.png)](https://www.youtube.com/watch?v=SaEBODFaAF8) 
 
 ### Development team: 
 Dmitry Pechyony pechyony@outlook.com  (team lead)   
