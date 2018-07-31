@@ -12,6 +12,8 @@ Asheesh Kashyap akashyap20@hotmail.com
 
 ### Documentation
 1. [Instructions for setting up development environment](https://github.com/udacity/CarND-Capstone)
-2. System architecture
+2. System architecture  
+
 ![alt text][image1]
+
 3. [Development of traffic light detection model](docs/tl_detector_model_building.md)
