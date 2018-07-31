@@ -4,7 +4,7 @@
 In this project we implement the core functionality of the autonomous vehicle system, including traffic light detection, control, and waypoint following. The code was tested in the [self-driving car of Udacity](https://medium.com/udacity/how-the-udacity-self-driving-car-works-575365270a40).
 
 ### Development team: 
-Dmitry Pechyony pechyony@outlook.com  (team lead)
+Dmitry Pechyony pechyony@outlook.com  (team lead)   
 Andre Francisco andre_francisco@hotmail.com  
 Jose Bermeol jdbermeol@gmail.com    
 Vikram Nag Ashoka vikramnag12@gmail.com  
