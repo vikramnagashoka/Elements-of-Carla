@@ -13,6 +13,9 @@
 [image11]: ./imgs/left0300.png "predicted real red"
 [image12]: ./imgs/left0500.png "predicted real yellow"
 [image13]: ./imgs/left0100.png "predicted real yellow"
+[image14]: ./imgs/left0279.jpg "bag 2 red"
+[image15]: ./imgs/left0145.jpg "bag 2 yellow"
+[image16]: ./imgs/left0128.jpg "bag 2 green"
 
 ## Contents
 1. [Introduction](#introduction)
@@ -230,14 +233,14 @@ The modified `trainer.py` and `input_builder.py` files are stored in `ros/src/tl
 
 Object Detection API uses as a training loss an average of localization and classification errors. While this loss function is convenient for training the model, it is less useful for evaluation of the traffic light detection performance. We define **traffic light error** as the sum of *traffic light detection error* and *traffic light classification error*.
 
-Traffic light detection error is the number of images that satisfy either of these two conditions:
+*Traffic light detection error* is the number of images that satisfy either of these two conditions:
 
 * there was no visible light, but the model detected a bounding box with a yellow or red light light.  
 * there is a visible light with yellow or green color, but the model did not detect it
 
 Notice that when there is no visible light but the model detected a green light, the car continues to drive as usual and we do not count this case as a wrong detection. Similarly, when there is a visible green light and the model didn't detect a traffic light, the car continues to drive as usual and there is no error. 
 
-Traffic light classification error is the number of images where there is a visible traffic light, the model detected it, but classified with the wrong color.
+*Traffic light classification error* is the number of images where there is a visible traffic light, the model detected it, but classified with the wrong color.
 
 We would like to obtain a model with the smallest traffic light error, measured over validation set. This can be achieved by running Object Detection API evaluation script `eval.py` sequentially over the models created by the training process that is managed by `train.py`. Unfortunately `eval.py` does not support custom metrics. Moreover, `eval.py` evaluates the latest available model and cannot process models sequentially. Hence we had to customize the evaluation process of Object Detection API to obtain the desired model. We start with the description of changes in configuration files. 
 
@@ -330,7 +333,9 @@ But nevertheless in this image the detection with the highest score is correct (
 
 ### Model for real images
 
-We evaluated the model over all 2030 images extracted from  [ROS bag file](https://drive.google.com/file/d/0B2_h37bMVw3iYkdJTlRSUlJIamM/view?usp=sharing) that was provided by Udacity. 297 of these images are also in the training set. The evaluation is done in `ros/src/tl_detector/model_training/object_detection_evaluation_real.ipynb` notebook. 
+#### First version
+
+We evaluated the model over all 2030 images extracted from the first ROS bag file. 297 of these images are also in the training set. The evaluation is done in `ros/src/tl_detector/model_training/object_detection_evaluation_real.ipynb` notebook. 
 
 For the purpose of evaluation, we labelled manually all images with the labels 'green', 'yellow', 'red', 'no light'. Unlike training labels, these are categorical labels and not bounding boxes. During evaluation we computed detection error and classification error.  
 
@@ -341,3 +346,39 @@ Our model has 11 images with detection error and 8 images with classification er
 ![alt text][image12]
 
 ![alt text][image13]
+
+After obtaining the second and the third ROS bag files, we tested the model over them. Unfortunately the model had a very bad performance over these files. The following table summarizes evaluation of the model over three ROS bag files:
+
+| ROS bag file | Detection Error | Classification Error | Traffic Light Error |
+|:------------:|:---------------:|:--------------------:|:-------------------:|
+| 1            |     11          |         8            |          19        |
+| 2            |     192          |         194           |        386        |
+| 3            |     364         |         174            |        538         |
+
+The evaluation over second and third ROS bag files is done in `object_detection_evaluation_real_bag1.ipynb` and `object_detection_evaluation_real_bag2.ipynb` notebooks stored in `ros/src/tl_detector/model_training` folder.
+
+The main reason for a bad performance in the second and third ROS files is that images in these files have different colors in traffic lights and trees than the ones in the first file. This might be attributed to different light conditions when recording ROS bag files. Here are examples of traffic lights from the second ROS bag file:
+
+![alt text][image14]
+
+![alt text][image15]
+
+![alt text][image16]
+
+Additional reason for a bad performance is that the model overfits to the images in the first ROS bag file by optimizing the average of training localization and classification losses. As we mentioned in the Section 4.2, these losses are less useful for evaluation of traffil light detection performance.
+
+#### Second version
+
+The following table summarizes evaluation of the second version of the model over three ROS bag files:
+
+| ROS bag file | Detection Error | Classification Error | Traffic Light Error |
+|:------------:|:---------------:|:--------------------:|:-------------------:|
+| 1            |     4           |         11           |          15         |
+| 2            |     2           |         1            |          3          |
+| 3            |     19          |         1            |          20         |
+
+In the second and third ROS bag files the second version of the model improved performance dramatically over the one of the first version of the model. In the first ROS bag file the performance of both models is about the same.
+
+The evaluation notebooks of the second version of the model for the first, second and third ROS bag files are `object_detection_evaluation_real_V2.ipynb`, `object_detection_evaluation_real_bag1_V2.ipynb` and `object_detection_evaluation_real_bag2_V2.ipynb` respectively, and are stored in `ros/src/tl_detector/model_training` folder.
+
+
