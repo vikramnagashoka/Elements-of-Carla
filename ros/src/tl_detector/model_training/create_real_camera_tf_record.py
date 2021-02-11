@@ -21,7 +21,7 @@ Example usage:
     python create_real_camera_tf_record.py --data_dir=<directory of images> \
         --annotations_dir=<name of directory (inside directory of images) that has image annotations> \
         --output_path=<location and name of the output file> \
-        --label-map-path=<path to label map file> 
+        --label_map_path=<path to label map file> 
 """
 from __future__ import absolute_import
 from __future__ import division
